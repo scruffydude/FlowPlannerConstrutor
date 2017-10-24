@@ -405,32 +405,42 @@ namespace FlowPlanConstruction
                     //determine which rows to go look for
                     foreach (string label in rowlabels)
                     {
-                        if(r>11)
+                        Console.WriteLine(label);
+                        Console.WriteLine(r);
+                        Console.WriteLine("Table size: " + rowlabels.Length);
+                        Console.ReadLine();
+                        if (r > 11)
                         {
-                            Console.WriteLine(System.DateTime.Now + ":\t" + "Current Row Check Greater than number of verifications needed.. Shutting down Labor Plan Search");
-                            logging.WriteLine(System.DateTime.Now + ":\t" + "Current Row Check Greater than number of verifications needed.. Shutting down Labor Plan Search");
-                            return false;
-                        }
-                        string rcheck = OBDP.Cells[dprows[r], 2].value; //Set the row check = to what we think the row should be
-                        if (rcheck == label)
-                        {
-                            Console.WriteLine(System.DateTime.Now + ":\t" + "Row location verified for " + label + " at row " + dprows[r]);
-                            logging.WriteLine(System.DateTime.Now + ":\t" + "Row location verified for " + label + " at row " + dprows[r]);
+
+                            //Console.WriteLine(System.DateTime.Now + ":\t" + "Current Row Check Greater than number of verifications needed.. Shutting down Labor Plan Search");
+                            //logging.WriteLine(System.DateTime.Now + ":\t" + "Current Row Check Greater than number of verifications needed.. Shutting down Labor Plan Search");
+                            //return false;
                         }
                         else
                         {
-                            int OBDPusedRange = OBDP.UsedRange.Rows.Count;
-                            string newrcheck = "";
-                            for (int x = 1; x < OBDPusedRange; x++)
-                            {
-                                newrcheck = OBDP.Cells[x, 2].value;
-                                if (newrcheck == label)
-                                {
-                                    dprows[r] = x;
-                                    Console.WriteLine(System.DateTime.Now + ":\t" + "Row location for " + label + " now found at row " + dprows[r]);
-                                    logging.WriteLine(System.DateTime.Now + ":\t" + "Row location for " + label + " now found at row " + dprows[r]);
-                                }
 
+
+                            string rcheck = OBDP.Cells[dprows[r], 2].value; //Set the row check = to what we think the row should be
+                            if (rcheck == label)
+                            {
+                                Console.WriteLine(System.DateTime.Now + ":\t" + "Row location verified for " + label + " at row " + dprows[r]);
+                                logging.WriteLine(System.DateTime.Now + ":\t" + "Row location verified for " + label + " at row " + dprows[r]);
+                            }
+                            else
+                            {
+                                int OBDPusedRange = OBDP.UsedRange.Rows.Count;
+                                string newrcheck = "";
+                                for (int x = 1; x < OBDPusedRange; x++)
+                                {
+                                    newrcheck = OBDP.Cells[x, 2].value;
+                                    if (newrcheck == label)
+                                    {
+                                        dprows[r] = x;
+                                        Console.WriteLine(System.DateTime.Now + ":\t" + "Row location for " + label + " now found at row " + dprows[r]);
+                                        logging.WriteLine(System.DateTime.Now + ":\t" + "Row location for " + label + " now found at row " + dprows[r]);
+                                    }
+
+                                }
                             }
                         }
                         r++;
