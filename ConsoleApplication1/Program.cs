@@ -378,12 +378,13 @@ namespace FlowPlanConstruction
             int col = 0;
             col = System.DateTime.Today.DayOfYear;
             int i = 0;
-            int r = 0;
+            
             string[] rowlabels = { "Planned Total Show Hours (Days)", "Planned Throughput (Days)", "Planned Units Shipped (Days)", "Planned Supply Chain Units Ordered (Days)", "Planned Total Show Hours (Nights)", "Planned Throughput (Nights)", "Planned Units Shipped (Nights)", "Planned Supply Chain Units Ordered (Nights)", "Planned Total Show Hours (Days)", "Planned Throughput (Days)", "Planned Units Shipped (Days)", "Planned Supply Chain Units Ordered (Days)" };
 
 
             foreach (string laborplan in laborplans)
             {
+                int r = 0;
                 laborplanfileName = System.IO.Path.GetFileName(laborplan);
                 if (laborplanfileName.Contains(wh) && laborplanfileName.Contains(".xls"))
                 {
@@ -405,16 +406,12 @@ namespace FlowPlanConstruction
                     //determine which rows to go look for
                     foreach (string label in rowlabels)
                     {
-                        Console.WriteLine(label);
-                        Console.WriteLine(r);
-                        Console.WriteLine("Table size: " + rowlabels.Length);
-                        Console.ReadLine();
+                        
                         if (r > 11)
                         {
-
-                            //Console.WriteLine(System.DateTime.Now + ":\t" + "Current Row Check Greater than number of verifications needed.. Shutting down Labor Plan Search");
-                            //logging.WriteLine(System.DateTime.Now + ":\t" + "Current Row Check Greater than number of verifications needed.. Shutting down Labor Plan Search");
-                            //return false;
+                            Console.WriteLine(System.DateTime.Now + ":\t" + "Current Row Check Greater than number of verifications needed.. Shutting down Labor Plan Search");
+                            logging.WriteLine(System.DateTime.Now + ":\t" + "Current Row Check Greater than number of verifications needed.. Shutting down Labor Plan Search");
+                            return false;
                         }
                         else
                         {
