@@ -30,6 +30,7 @@ namespace FlowPlanConstruction
 
         static void Main(string[] args)
         {
+            
             //setup log file information
             string user = WindowsIdentity.GetCurrent().Name;
 
@@ -184,7 +185,7 @@ namespace FlowPlanConstruction
                     }
                     catch
                     {
-                        log.Warn("Unable to open flow plany at: " + laborplan);
+                        log.Warn("Unable to open labor plan at: " + laborplan);
                         return false;
                     }
                     
@@ -399,9 +400,10 @@ namespace FlowPlanConstruction
                         customFlowPlanDestinationWB.Close();
                         log.Warn("Origial file unable to be saved successfully, secondary save successful at  at: {0}", saveFilename + "(Empty).xlsm");
                     }
-                    catch
+                    catch(Exception e)
                     {
-                    log.Fatal("File unable to be saved at: {0}", saveFilename + ".xlsm");
+                    log.Fatal("Both File attempts unable to be saved at: {0}", saveFilename + ".xlsm");
+                    log.Fatal(e);
                     }
                 }
 
