@@ -366,7 +366,7 @@ namespace FlowPlanConstruction
                 //save copy of file off some where
                 string saveFilename = newFileDirectory 
                     + customFPDestinationSOSWKST.Cells[3, 9].value 
-                    + " Flow Plan V" + customFPDestinationSOSWKST.Cells[1,9].value 
+                    + " Flow Plan V" + customFPDestinationSOSWKST.Cells[2,9].value 
                     + shift 
                     + " " 
                     + System.DateTime.Now.ToString("yyyy-MM-dd");
