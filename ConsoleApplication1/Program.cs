@@ -319,6 +319,10 @@ namespace FlowPlanConstruction
 
             customFlowPlanDestRange.Value = chargeDataSourceWKST.UsedRange.Value;
 
+            object test = chargeDataSourceWKST.UsedRange.Value;
+
+            
+
             log.Info("New charge Data inserted into the master copy");
 
             chargeDataSourceWB.Close();
