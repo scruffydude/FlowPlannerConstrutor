@@ -15,17 +15,18 @@ namespace FlowPlanConstruction
     {
         private static Logger log = LogManager.GetCurrentClassLogger();
 
-        public const bool visibilityFlag = true;
+        public const bool visibilityFlag = false;
         public const bool alertsFlag = false;
         public const bool runArchive = true;
         public const bool runLaborPlan = true;
         public const string chargeDataSrcPath = @"\\cfc1afs01\Operations-Analytics\RAW Data\chargepattern.csv";
         public const string masterFlowPlanLocation = @"\\CFC1AFS01\Operations-Analytics\Projects\Flow Plan\Outbound Flow Plan v2.0(MCRC).xlsm";
         public const string laborPlanLocationation = @"\\chewy.local\bi\BI Community Content\Finance\Labor Models\";
-        public static string[] warehouses = { "AVP1", "CFC1", "DFW1", "EFC3", "WFC2" };
+        public static string[] warehouses = { "AVP1", /*"CFC1", "DFW1", "EFC3", "WFC2" */};
         public static string[] shifts = { "Days", "Nights", "" };
 
-        public static double[] avp1TPHHourlyGoal = { 0.80, 1.12, 1.12, 0.80, 1.08, 0.96, 1.12, 0.80, 1.12, 1.04 };
+        public static double[] avp1TPHHourlyGoalDays = { 0.80, 1.12, 1.12, 0.80, 1.08, 0.96, 1.12, 0.80, 1.12, 1.04 };
+        public static double[] avp1TPHHourlyGoalNights= { 0.80, 1.12, 0.80, 1.12, 1.08, 0.96, 1.12, 0.80, 1.12, 1.04 };
         //public static double[] OtherFCTPHHourlyGoal = { 0.80, 1.12, 0.80, 1.12, 1.08, 0.96, 1.12, 0.80, 1.12, 1.04 };
 
         static void Main(string[] args)
@@ -37,6 +38,7 @@ namespace FlowPlanConstruction
             log.Trace("Application started by {0}", user);
 
             string currentWarehouse = "";
+            string distrobutionList = "";
 
             bool runLaborPlanPopulate = false;
 
@@ -62,26 +64,31 @@ namespace FlowPlanConstruction
                         createdFileDestination = @"\\avp1afs01\Outbound\AVP Flow Plan\Blank Copy\";
                         archivePath = @"\\avp1afs01\Outbound\AVP Flow Plan\FlowPlanArchive\NotProcessed\";
                         avp1dprows.CopyTo(dprows, 0);
+                        distrobutionList = "DL-AVP1-Outbound@chewy.com";
                         break;
                     case "CFC1":
                         createdFileDestination = @"\\cfc1afs01\Outbound\Master Wash\Blank Copy\";
                         archivePath = @"\\cfc1afs01\Outbound\Master Wash\FlowPlanArchive\NotProcessed\";
                         cfc1dprows.CopyTo(dprows, 0);
+                        distrobutionList = "DL-CFC-Outbound@chewy.com";
                         break;
                     case "DFW1":
                         createdFileDestination = @"\\dfw1afs01\Outbound\Blank Flow Plan\";
                         archivePath = @"\\dfw1afs01\Outbound\FlowPlanArchive\NotProcessed\";
                         dfw1dprows.CopyTo(dprows, 0);
+                        distrobutionList = "DL-DFW1-Outbound@chewy.com";
                         break;
                     case "EFC3":
                         createdFileDestination = @"\\wh-pa-fs-01\OperationsDrive\Blank Flow Plan\";
                         archivePath = @"\\wh-pa-fs-01\OperationsDrive\FlowPlanArchive\NotProcessed\";
                         efc3dprows.CopyTo(dprows, 0);
+                        distrobutionList = "DL-EFC3-Outbound@chewy.com";
                         break;
                     case "WFC2":
                         createdFileDestination = @"\\wfc2afs01\Outbound\Outbound Flow Planner\Blank Copy\";
                         archivePath = @"\\wfc2afs01\Outbound\Outbound Flow Planner\FlowPlanArchive\NotProcessed\";
                         wfc2dprows.CopyTo(dprows, 0);
+                        distrobutionList = "DL-WFC2-Outbound@chewy.com";
                         break;
                     default:
                         log.Warn("Warehouse {0} not found please add to structure." , currentWarehouse);
@@ -100,7 +107,7 @@ namespace FlowPlanConstruction
 
                 foreach (string shift in shifts)
                 {
-                    customizeFlowPlan(createdFileDestination, currentWarehouse, shift, runLaborPlan, laborplaninfo);
+                    customizeFlowPlan(createdFileDestination, currentWarehouse, shift, runLaborPlan, laborplaninfo, distrobutionList);
                 }
             }
         }
@@ -207,7 +214,7 @@ namespace FlowPlanConstruction
                             string rcheck = OBDP.Cells[dprows[r], 2].value; //Set the row check = to what we think the row should be
                             if (rcheck == label)
                             {
-                                log.Warn("Row location verified for " + label + " at row " + dprows[r]);
+                                log.Info("Row location verified for " + label + " at row " + dprows[r]);
                             }
                             else
                             {
@@ -261,7 +268,7 @@ namespace FlowPlanConstruction
             return true; // we want to add the data to the flow planners
         }
 
-        private static void customizeFlowPlan(string newFileDirectory, string warehouse, string shift,bool laborPlanInfoAvaliable, double[] laborPlanInformation)
+        private static void customizeFlowPlan(string newFileDirectory, string warehouse, string shift,bool laborPlanInfoAvaliable, double[] laborPlanInformation, string distrobutionList)
         {
             log.Info("Begining {0} {1} file customization process", warehouse, shift);
             //define Excel Application for the Creation Process
@@ -278,6 +285,7 @@ namespace FlowPlanConstruction
             Excel.Worksheet customFlowPlanDestinationCHRGDATAWKST = null;
             Excel.Worksheet customFPDestinationSOSWKST = null;
             Excel.Worksheet customFlowPlanDestinationHOURLYTPHWKST = null;
+            Excel.Worksheet customFlowPlanDestinationMasterDataWKST = null;
 
             log.Info("Excel Empty containers created");
 
@@ -289,6 +297,7 @@ namespace FlowPlanConstruction
             customFlowPlanDestinationCHRGDATAWKST = customFlowPlanDestinationWB.Worksheets.Item["Charge Data"];
             customFPDestinationSOSWKST = customFlowPlanDestinationWB.Worksheets.Item["SOS"];
             customFlowPlanDestinationHOURLYTPHWKST = customFlowPlanDestinationWB.Worksheets.Item["Hourly TPH"];
+            customFlowPlanDestinationMasterDataWKST = customFlowPlanDestinationWB.Worksheets.Item["Master Data"];
 
             log.Info("Charge Data Source: {0}", chargeDataSrcPath);
             log.Info("Master Flow Plan Source: {0}", masterFlowPlanLocation);
@@ -353,12 +362,26 @@ namespace FlowPlanConstruction
                 //Hourly TPH Configuration
                 if (warehouse == "AVP1")
                 {
+                    if(shift =="Days")
+                {
                     for (int i = 0; i < 10; i++)
                     {
-                        customFlowPlanDestinationHOURLYTPHWKST.Cells[25, i + 4].value = avp1TPHHourlyGoal[i];
+                        customFlowPlanDestinationHOURLYTPHWKST.Cells[25, i + 4].value = avp1TPHHourlyGoalDays[i];
                     }
+                }else
+                {
+                    for (int i = 0; i < 10; i++)
+                    {
+                        customFlowPlanDestinationHOURLYTPHWKST.Cells[25, i + 4].value = avp1TPHHourlyGoalNights[i];
+                    }
+                }
+
+                    
                 log.Info("TPH assumptions Adjusted for AVP1");
-            }
+                }
+
+            //Master Data Configuration
+            customFlowPlanDestinationMasterDataWKST.Cells[30, 8].value = distrobutionList;
 
                 //reset caluclation
                 CustomiseFlowPlanApplication.Calculation = Excel.XlCalculation.xlCalculationAutomatic;
@@ -366,7 +389,8 @@ namespace FlowPlanConstruction
                 //save copy of file off some where
                 string saveFilename = newFileDirectory 
                     + customFPDestinationSOSWKST.Cells[3, 9].value 
-                    + " Flow Plan V" + customFPDestinationSOSWKST.Cells[2,9].value 
+                    + " Flow Plan V " + customFPDestinationSOSWKST.Cells[2,9].value 
+                    + " "
                     + shift 
                     + " " 
                     + System.DateTime.Now.ToString("yyyy-MM-dd");
