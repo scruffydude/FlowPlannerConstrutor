@@ -35,7 +35,7 @@ namespace FlowPlanConstruction
             //setup log file information
             string user = WindowsIdentity.GetCurrent().Name;
 
-            log.Trace("Application started by {0}", user);
+            log.Info("Application started by {0}", user);
 
             string currentWarehouse = "";
             string distrobutionList = "";
@@ -110,6 +110,7 @@ namespace FlowPlanConstruction
                     customizeFlowPlan(createdFileDestination, currentWarehouse, shift, runLaborPlan, laborplaninfo, distrobutionList);
                 }
             }
+            LogManager.Flush();
         }
         private static void CleanUpDirectories(string locToArchive, string archiveLocation)
         {
@@ -319,7 +320,7 @@ namespace FlowPlanConstruction
 
             customFlowPlanDestRange.Value = chargeDataSourceWKST.UsedRange.Value;
 
-            object test = chargeDataSourceWKST.UsedRange.Value;
+            //object test = chargeDataSourceWKST.UsedRange.Value;
 
             
 
