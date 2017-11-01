@@ -8,6 +8,7 @@ using Excel = Microsoft.Office.Interop.Excel;
 using Marshal = System.Runtime.InteropServices;
 using System.Security.Principal;
 using NLog;
+using System.Xml;
 
 namespace FlowPlanConstruction
 {
@@ -17,21 +18,23 @@ namespace FlowPlanConstruction
 
         public const bool visibilityFlag = false;
         public const bool alertsFlag = false;
-        public const bool runArchive = true;
-        public const bool runLaborPlan = true;
+        public const bool runArchive = false;
+        public const bool runLaborPlan = false;
+        public const bool runCustom = false;
         public const string chargeDataSrcPath = @"\\cfc1afs01\Operations-Analytics\RAW Data\chargepattern.csv";
         public const string masterFlowPlanLocation = @"\\CFC1AFS01\Operations-Analytics\Projects\Flow Plan\Outbound Flow Plan v2.0(MCRC).xlsm";
         public const string laborPlanLocationation = @"\\chewy.local\bi\BI Community Content\Finance\Labor Models\";
-        public static string[] warehouses = { "AVP1", /*"CFC1", "DFW1", "EFC3", "WFC2" */};
+        public static string[] warehouses = { "AVP1"/*, "CFC1", "DFW1", "EFC3", "WFC2"*/ };
         public static string[] shifts = { "Days", "Nights", "" };
 
         public static double[] avp1TPHHourlyGoalDays = { 0.80, 1.12, 1.12, 0.80, 1.08, 0.96, 1.12, 0.80, 1.12, 1.04 };
         public static double[] avp1TPHHourlyGoalNights= { 0.80, 1.12, 0.80, 1.12, 1.08, 0.96, 1.12, 0.80, 1.12, 1.04 };
-        //public static double[] OtherFCTPHHourlyGoal = { 0.80, 1.12, 0.80, 1.12, 1.08, 0.96, 1.12, 0.80, 1.12, 1.04 };
+        public static double[] defaultTPHHourlyGoalDays = { 0.80, 1.12, 0.80, 1.12, 1.08, 0.96, 1.12, 0.80, 1.12, 1.04 };
 
         static void Main(string[] args)
         {
-            
+            //List<Warehouse> warehouses = new List<Warehouse>();
+
             //setup log file information
             string user = WindowsIdentity.GetCurrent().Name;
 
@@ -44,16 +47,24 @@ namespace FlowPlanConstruction
 
             var createdFileDestination = @"\\CFC1AFS01\Operations-Analytics\Projects\Flow Plan\";
 
-            //set up enviroment for each FC
+            //set up enviroment for each FC define the defaults
             string archivePath = @"\\cfc1afs01\Operations-Analytics\Projects\Flow Plan\BackUpArchive";
             int[] dprows = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
-            int[] cfc1dprows = { 31, 34, 37, 41, 71, 74, 77, 81, 31, 34, 37, 41 };
+            int[] cfc1dprows = { 32, 35, 38, 42, 73, 76, 79, 83, 32, 35, 38, 42 };
             int[] avp1dprows = { 25, 28, 31, 35, 59, 62, 65, 69, 25, 28, 31, 35 };
-            int[] dfw1dprows = { 27, 30, 33, 37, 60, 63, 66, 70, 27, 30, 33, 37 };
+            int[] dfw1dprows = { 34, 37, 40, 44, 74, 77, 80, 84, 34, 37, 40, 44 };
             int[] wfc2dprows = { 30, 33, 36, 40, 67, 70, 73, 77, 30, 33, 36, 40 };
-            int[] efc3dprows = { 25, 28, 31, 35, 59, 62, 65, 69, 25, 28, 31, 35 };
-
+            int[] efc3dprows = { 26, 29, 32, 36, 61, 64, 67, 71, 25, 29, 32, 36 };
+            int[] daysRate = { };
+            int[] nightsRate = { };
+            int[] defaultGoalRates = {47,100,24,30,110,90,40,300,2 };
             double[] laborplaninfo = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
+
+            List<Warehouse> warehouseList = new List<Warehouse>();
+
+            warehouseList = getWHList();
+
+            File.WriteAllText("warehouses.xml", buildXmlFile(warehouseList));
 
             foreach (string wh in warehouses)
             {
@@ -105,10 +116,14 @@ namespace FlowPlanConstruction
                     CleanUpDirectories(createdFileDestination, archivePath);
                 }
 
-                foreach (string shift in shifts)
+                if (runCustom)
                 {
-                    customizeFlowPlan(createdFileDestination, currentWarehouse, shift, runLaborPlan, laborplaninfo, distrobutionList);
+                    foreach (string shift in shifts)
+                    {
+                        customizeFlowPlan(createdFileDestination, currentWarehouse, shift, runLaborPlan, laborplaninfo, distrobutionList);
+                    }
                 }
+                
             }
             LogManager.Flush();
         }
@@ -215,7 +230,7 @@ namespace FlowPlanConstruction
                             string rcheck = OBDP.Cells[dprows[r], 2].value; //Set the row check = to what we think the row should be
                             if (rcheck == label)
                             {
-                                log.Info("Row location verified for " + label + " at row " + dprows[r]);
+                                log.Info(wh + " Row location verified for " + label + " at row " + dprows[r]);
                             }
                             else
                             {
@@ -227,7 +242,7 @@ namespace FlowPlanConstruction
                                     if (newrcheck == label)
                                     {
                                         dprows[r] = x;
-                                        log.Warn("Row location for " + label + " now found at row " + dprows[r]);
+                                        log.Warn(wh + " Row location for " + label + " now found at row " + dprows[r]);
                                     }
 
                                 }
@@ -388,6 +403,10 @@ namespace FlowPlanConstruction
             //Master Data Configuration
             customFlowPlanDestinationMasterDataWKST.Cells[30, 8].value = distrobutionList;
 
+            //Hourly ST 
+            //tHis section is where we are going to read the current set values when we archive to allow the team to update the values and they will stick this means that i need to create and XML representation of each warehouse to store the defaults on both nights and days
+            //I may want to extrapulate and create WareHouse objects so that i can keep track of all of these different setups and make adding warehouse extensible and flexible on runtime. this will reduce errors when the labor plans change.
+
                 //reset caluclation
                 CustomiseFlowPlanApplication.Calculation = Excel.XlCalculation.xlCalculationAutomatic;
 
@@ -463,6 +482,74 @@ namespace FlowPlanConstruction
             { Marshal.Marshal.ReleaseComObject(CustomiseFlowPlanApplication); }
 
 
+        }
+        public void shutDownApplication(Exception e)
+        {
+
+            log.Fatal(e, "Causation of Abort:");
+
+        }
+
+        private static string buildXmlFile (List<Warehouse> warehousesList)
+        {
+            XmlDocument warehousesXML = new XmlDocument();
+
+            XmlNode warehouseRoot = warehousesXML.CreateElement("Warehouses");
+            warehousesXML.AppendChild(warehouseRoot);
+
+            foreach(Warehouse wh in warehousesList)
+            {
+                XmlNode warehouse = warehousesXML.CreateElement(wh.Name);
+                warehouseRoot.AppendChild(warehouse);
+                CreateNewChildXmlNode(warehousesXML, warehouse, "Name", wh.Name.ToString());
+                CreateNewChildXmlNode(warehousesXML, warehouse, "Location", wh.Location.ToString());
+                CreateNewChildXmlNode(warehousesXML, warehouse, "BlankLoc", wh.blankCopyLoc.ToString());
+                CreateNewChildXmlNode(warehousesXML, warehouse, "ArchiveLoc", wh.archiveLoc.ToString());
+                CreateNewChildXmlNode(warehousesXML, warehouse, "DistroListTarget", wh.DistroList.ToString());
+                CreateNewChildXmlNode(warehousesXML, warehouse, "LaborPlanRows", string.Join(",", wh.laborPlanInforRows));
+                CreateNewChildXmlNode(warehousesXML, warehouse, "TPHDistro", string.Join(",", wh.tphDistro));
+                CreateNewChildXmlNode(warehousesXML, warehouse, "DaysRates", string.Join(",", wh.daysRate));
+                CreateNewChildXmlNode(warehousesXML, warehouse, "NightsRates", string.Join(",", wh.nightsRate));
+            }
+
+            return warehousesXML.InnerXml;
+        }
+
+        public static void CreateNewChildXmlNode(XmlDocument document, XmlNode parentNode, string elementName, object value)
+        {
+            XmlNode node = document.CreateElement(elementName);
+            node.AppendChild(document.CreateTextNode(value.ToString()));
+            parentNode.AppendChild(node);
+        }
+
+        public static List<Warehouse> getWHList()
+        {
+            int[] dprows = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
+            int[] cfc1dprows = { 32, 35, 38, 42, 73, 76, 79, 83, 32, 35, 38, 42 };
+            int[] avp1dprows = { 25, 28, 31, 35, 59, 62, 65, 69, 25, 28, 31, 35 };
+            int[] dfw1dprows = { 34, 37, 40, 44, 74, 77, 80, 84, 34, 37, 40, 44 };
+            int[] wfc2dprows = { 30, 33, 36, 40, 67, 70, 73, 77, 30, 33, 36, 40 };
+            int[] efc3dprows = { 26, 29, 32, 36, 61, 64, 67, 71, 25, 29, 32, 36 };
+            double[] daysRate = { };
+            double[] nightsRate = { };
+            double[] defaultGoalRates = { 47, 100, 24, 30, 110, 90, 40, 300, 2.5 };
+
+            List<Warehouse> whList = new List<Warehouse>();
+
+            Warehouse AVP1 = new Warehouse("AVP1", "Scranton/Wilkes-barre, PA", @"\\avp1afs01\Outbound\AVP Flow Plan\Blank Copy\", @"\\avp1afs01\Outbound\AVP Flow Plan\FlowPlanArchive\NotProcessed\", "DL-AVP1-Outbound@chewy.com", avp1dprows, avp1TPHHourlyGoalDays, defaultGoalRates, defaultGoalRates);
+            Warehouse CFC1 = new Warehouse("CFC1", "Clayton, IN", @"\\cfc1afs01\Outbound\Master Wash\Blank Copy\", @"\\cfc1afs01\Outbound\Master Wash\FlowPlanArchive\NotProcessed\", "DL-CFC-Outbound@chewy.com", cfc1dprows, defaultTPHHourlyGoalDays, defaultGoalRates, defaultGoalRates);
+            Warehouse DFW1 = new Warehouse("DFW1", "Dallas, TX", @"\\dfw1afs01\Outbound\Blank Flow Plan\", @"\\dfw1afs01\Outbound\FlowPlanArchive\NotProcessed\", "DL-DFW1-Outbound@chewy.com", dfw1dprows, avp1TPHHourlyGoalDays, defaultGoalRates, defaultGoalRates);
+            Warehouse EFC3 = new Warehouse("EFC3", "Mechanicsburg, PA", @"\\wh-pa-fs-01\OperationsDrive\Blank Flow Plan\", @"\\wh-pa-fs-01\OperationsDrive\FlowPlanArchive\NotProcessed\", "DL-EFC3-Outbound@chewy.com", efc3dprows, defaultTPHHourlyGoalDays, defaultGoalRates, defaultGoalRates);
+            Warehouse WFC2 = new Warehouse("WFC2", "Reno, NV", @"\\wfc2afs01\Outbound\Outbound Flow Planner\Blank Copy\", @"\\wfc2afs01\Outbound\Outbound Flow Planner\FlowPlanArchive\NotProcessed\", "DL-WFC2-Outbound@chewy.com", wfc2dprows, defaultTPHHourlyGoalDays, defaultGoalRates, defaultGoalRates);
+
+
+            whList.Add(AVP1);
+            whList.Add(CFC1);
+            whList.Add(DFW1);
+            whList.Add(EFC3);
+            whList.Add(WFC2);
+
+            return whList;
         }
     }
 }
