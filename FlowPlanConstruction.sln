@@ -3,7 +3,7 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio 14
 VisualStudioVersion = 14.0.25420.1
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Charge Pattern", "ConsoleApplication1\Charge Pattern.csproj", "{8706BEAA-55F8-4957-B5EE-1885C97E7392}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "FlowPlanConstructor", "ConsoleApplication1\FlowPlanConstructor.csproj", "{8706BEAA-55F8-4957-B5EE-1885C97E7392}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution

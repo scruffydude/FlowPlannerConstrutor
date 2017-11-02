@@ -16,33 +16,36 @@ namespace FlowPlanConstruction
     {
         private static Logger log = LogManager.GetCurrentClassLogger();
 
-        public const bool visibilityFlag = false;
-        public const bool alertsFlag = false;
+        //section toggles
         private const bool debugMode = false;
         public const bool runArchive = true;
         public const bool runLaborPlan = true;
         public const bool runCustom = true;
+
+        //application flags
+        public const bool visibilityFlag = false;
+        public const bool alertsFlag = false;
+
+        //path information
         public const string chargeDataSrcPath = @"\\cfc1afs01\Operations-Analytics\RAW Data\chargepattern.csv";
         public const string masterFlowPlanLocation = @"\\CFC1AFS01\Operations-Analytics\Projects\Flow Plan\Outbound Flow Plan v2.0(MCRC).xlsm";
         public const string laborPlanLocationation = @"\\chewy.local\bi\BI Community Content\Finance\Labor Models\";
-        public static string[] warehouses = { "AVP1"/*, "CFC1", "DFW1", "EFC3", "WFC2"*/ };
+        public const string whXmlList = "Warehouses.xml";
+
+        //shiift defenition
         public static string[] shifts = { "Days", "Nights", "" };
 
+        //rate defaults
         public static double[] avp1TPHHourlyGoalDays = { 0.80, 1.12, 1.12, 0.80, 1.08, 0.96, 1.12, 0.80, 1.12, 1.04 };
         public static double[] avp1TPHHourlyGoalNights= { 0.80, 1.12, 0.80, 1.12, 1.08, 0.96, 1.12, 0.80, 1.12, 1.04 };
         public static double[] defaultTPHHourlyGoalDays = { .90, 1, .90,1,1,.7,.9, 1,.9, 1,.7};
-
-        public const string whXmlList = "Warehouses.xml";
-
+        
         static void Main(string[] args)
         {
             //setup log file information
             string user = WindowsIdentity.GetCurrent().Name;
 
             log.Info("Application started by {0}", user);
-
-            //string currentWarehouse = "";
-            //string distrobutionList = "";
 
             bool runLaborPlanPopulate = false;
 
@@ -54,10 +57,10 @@ namespace FlowPlanConstruction
 
             foreach( Warehouse wh in warehouseList)
             {
-                if(!debugMode)
+                if(!debugMode && wh.Name =="AVP1")
                 {
                     if (runLaborPlan)
-                        runLaborPlanPopulate = obtainLaborPlanInfo(wh.laborPlanInforRows, wh.Name, laborplaninfo);
+                        wh.laborPlanInforRows = obtainLaborPlanInfo(wh.laborPlanInforRows, wh.Name, laborplaninfo, ref runLaborPlanPopulate);
                     if (runArchive)
                         CleanUpDirectories(wh.blankCopyLoc, wh.archiveLoc);
                     if(runCustom)
@@ -116,7 +119,7 @@ namespace FlowPlanConstruction
             }
         }
 
-        private static bool obtainLaborPlanInfo( int[]dprows, string wh, double[] laborplaninfo)
+        private static int[] obtainLaborPlanInfo( int[]dprows, string wh, double[] laborplaninfo, ref bool laborPlanPopulate)
         {
             log.Info("Begin Gathereing infromation form " + wh + " Labor Plan");
 
@@ -155,7 +158,7 @@ namespace FlowPlanConstruction
                     catch
                     {
                         log.Warn("Unable to open labor plan at: " + laborplan);
-                        return false;
+                        laborPlanPopulate = false;
                     }
                     
                     Excel.Worksheet OBDP = laborPlanModel.Worksheets.Item["OB Daily Plan"];
@@ -167,16 +170,15 @@ namespace FlowPlanConstruction
                         if (r > 11)
                         {
                             log.Warn("Current Row Check Greater than number of verifications needed.. Shutting down Labor Plan Search");
-                            return false;
+                            laborPlanPopulate = false;
                         }
                         else
                         {
-
-
                             string rcheck = OBDP.Cells[dprows[r], 2].value; //Set the row check = to what we think the row should be
                             if (rcheck == label)
                             {
                                 log.Info(wh + " Row location verified for " + label + " at row " + dprows[r]);
+
                             }
                             else
                             {
@@ -203,7 +205,7 @@ namespace FlowPlanConstruction
                         if(i>11)
                         {
                             log.Warn("Current Row Check Greater than number of verifications needed.. Shutting down Labor Plan Search");
-                            return false;
+                            laborPlanPopulate = false;
                         }
                         //add information into array
                         if (i < 9)//collect current day
@@ -227,7 +229,8 @@ namespace FlowPlanConstruction
             Workbooks = null;
             LaborPlanApp = null;
 
-            return true; // we want to add the data to the flow planners
+            laborPlanPopulate = true;
+            return dprows; // we want to add the data to the flow planners
         }
 
         private static void customizeFlowPlan(string newFileDirectory, string warehouse, string shift,bool laborPlanInfoAvaliable, double[] laborPlanInformation, string distrobutionList)
