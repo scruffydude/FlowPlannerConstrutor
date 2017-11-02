@@ -18,9 +18,10 @@ namespace FlowPlanConstruction
 
         public const bool visibilityFlag = false;
         public const bool alertsFlag = false;
-        public const bool runArchive = false;
-        public const bool runLaborPlan = false;
-        public const bool runCustom = false;
+        private const bool debugMode = false;
+        public const bool runArchive = true;
+        public const bool runLaborPlan = true;
+        public const bool runCustom = true;
         public const string chargeDataSrcPath = @"\\cfc1afs01\Operations-Analytics\RAW Data\chargepattern.csv";
         public const string masterFlowPlanLocation = @"\\CFC1AFS01\Operations-Analytics\Projects\Flow Plan\Outbound Flow Plan v2.0(MCRC).xlsm";
         public const string laborPlanLocationation = @"\\chewy.local\bi\BI Community Content\Finance\Labor Models\";
@@ -35,99 +36,42 @@ namespace FlowPlanConstruction
 
         static void Main(string[] args)
         {
-            //List<Warehouse> warehouses = new List<Warehouse>();
-
             //setup log file information
             string user = WindowsIdentity.GetCurrent().Name;
 
             log.Info("Application started by {0}", user);
 
-            string currentWarehouse = "";
-            string distrobutionList = "";
+            //string currentWarehouse = "";
+            //string distrobutionList = "";
 
             bool runLaborPlanPopulate = false;
 
-            var createdFileDestination = @"\\CFC1AFS01\Operations-Analytics\Projects\Flow Plan\";
-
-            //set up enviroment for each FC define the defaults
-            string archivePath = @"\\cfc1afs01\Operations-Analytics\Projects\Flow Plan\BackUpArchive";
-            int[] dprows = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
-            int[] cfc1dprows = { 32, 35, 38, 42, 73, 76, 79, 83, 32, 35, 38, 42 };
-            int[] avp1dprows = { 25, 28, 31, 35, 59, 62, 65, 69, 25, 28, 31, 35 };
-            int[] dfw1dprows = { 34, 37, 40, 44, 74, 77, 80, 84, 34, 37, 40, 44 };
-            int[] wfc2dprows = { 30, 33, 36, 40, 67, 70, 73, 77, 30, 33, 36, 40 };
-            int[] efc3dprows = { 26, 29, 32, 36, 61, 64, 67, 71, 25, 29, 32, 36 };
-            int[] daysRate = { };
-            int[] nightsRate = { };
-            int[] defaultGoalRates = {47,100,24,30,110,90,40,300,2 };
             double[] laborplaninfo = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
 
             List<Warehouse> warehouseList = new List<Warehouse>();
 
             warehouseList = getWHList();
 
-            File.WriteAllText(whXmlList, buildXmlFile(warehouseList));
-
-            foreach (string wh in warehouses)
+            foreach( Warehouse wh in warehouseList)
             {
-                currentWarehouse = wh;
-                switch (wh)
+                if(!debugMode)
                 {
-                    case "AVP1":
-                        createdFileDestination = @"\\avp1afs01\Outbound\AVP Flow Plan\Blank Copy\";
-                        archivePath = @"\\avp1afs01\Outbound\AVP Flow Plan\FlowPlanArchive\NotProcessed\";
-                        avp1dprows.CopyTo(dprows, 0);
-                        distrobutionList = "DL-AVP1-Outbound@chewy.com";
-                        break;
-                    case "CFC1":
-                        createdFileDestination = @"\\cfc1afs01\Outbound\Master Wash\Blank Copy\";
-                        archivePath = @"\\cfc1afs01\Outbound\Master Wash\FlowPlanArchive\NotProcessed\";
-                        cfc1dprows.CopyTo(dprows, 0);
-                        distrobutionList = "DL-CFC-Outbound@chewy.com";
-                        break;
-                    case "DFW1":
-                        createdFileDestination = @"\\dfw1afs01\Outbound\Blank Flow Plan\";
-                        archivePath = @"\\dfw1afs01\Outbound\FlowPlanArchive\NotProcessed\";
-                        dfw1dprows.CopyTo(dprows, 0);
-                        distrobutionList = "DL-DFW1-Outbound@chewy.com";
-                        break;
-                    case "EFC3":
-                        createdFileDestination = @"\\wh-pa-fs-01\OperationsDrive\Blank Flow Plan\";
-                        archivePath = @"\\wh-pa-fs-01\OperationsDrive\FlowPlanArchive\NotProcessed\";
-                        efc3dprows.CopyTo(dprows, 0);
-                        distrobutionList = "DL-EFC3-Outbound@chewy.com";
-                        break;
-                    case "WFC2":
-                        createdFileDestination = @"\\wfc2afs01\Outbound\Outbound Flow Planner\Blank Copy\";
-                        archivePath = @"\\wfc2afs01\Outbound\Outbound Flow Planner\FlowPlanArchive\NotProcessed\";
-                        wfc2dprows.CopyTo(dprows, 0);
-                        distrobutionList = "DL-WFC2-Outbound@chewy.com";
-                        break;
-                    default:
-                        log.Warn("Warehouse {0} not found please add to structure." , currentWarehouse);
-                        break;
-                }
-
-                if (runLaborPlan)
-                {
-                    runLaborPlanPopulate = obtainLaborPlanInfo(dprows, wh, laborplaninfo);
-                }
-
-                if (runArchive)
-                {
-                    CleanUpDirectories(createdFileDestination, archivePath);
-                }
-
-                if (runCustom)
-                {
-                    foreach (string shift in shifts)
+                    if (runLaborPlan)
+                        runLaborPlanPopulate = obtainLaborPlanInfo(wh.laborPlanInforRows, wh.Name, laborplaninfo);
+                    if (runArchive)
+                        CleanUpDirectories(wh.blankCopyLoc, wh.archiveLoc);
+                    if(runCustom)
                     {
-                        customizeFlowPlan(createdFileDestination, currentWarehouse, shift, runLaborPlan, laborplaninfo, distrobutionList);
+                        foreach(string shift in shifts)
+                        {
+                            customizeFlowPlan(wh.blankCopyLoc, wh.Name, shift, runLaborPlanPopulate, laborplaninfo, wh.DistroList);
+                        }
                     }
                 }
-                
             }
-            LogManager.Flush();
+
+            GracefulExit(warehouseList);
+            
         }
         private static void CleanUpDirectories(string locToArchive, string archiveLocation)
         {
@@ -485,7 +429,14 @@ namespace FlowPlanConstruction
 
 
         }
-        public void shutDownApplication(Exception e)
+
+        public static void GracefulExit(List<Warehouse> warehouseList)
+        {
+            File.WriteAllText(whXmlList, buildXmlFile(warehouseList));
+            log.Info("Warehouse list written to XML file for future use.");
+            LogManager.Flush();
+        }
+        public void CrashshutDownApplication(Exception e)
         {
 
             log.Fatal(e, "Causation of Abort:");
@@ -539,7 +490,6 @@ namespace FlowPlanConstruction
                     temp = new Warehouse("", "", "", "", "", dprows, defaultTPHHourlyGoalDays, defaultTPHHourlyGoalDays, defaultTPHHourlyGoalDays);
                     foreach (XmlNode warehouseinfo in warehouse.ChildNodes)
                     {
-                        Console.WriteLine(warehouseinfo.InnerText);
                         switch (warehouseinfo.Name)
                         {
                             case "Name":
@@ -558,26 +508,30 @@ namespace FlowPlanConstruction
                                 temp.DistroList = warehouseinfo.InnerText;
                                 break;
                             case "LaborPlanRows":
-                                temp.laborPlanInforRows = dprows;
+                                temp.laborPlanInforRows = Array.ConvertAll(warehouseinfo.InnerText.Split(','), int.Parse);
                                 break;
                             case "TPHDistro":
-                                temp.laborPlanInforRows = dprows;
+                                temp.tphDistro = Array.ConvertAll(warehouseinfo.InnerText.Split(','), double.Parse);
                                 break;
                             case "DaysRates":
-                                temp.laborPlanInforRows = dprows;
+                                temp.daysRate = Array.ConvertAll(warehouseinfo.InnerText.Split(','), double.Parse);
                                 break;
                             case "NightsRates":
-                                temp.laborPlanInforRows = dprows;
+                                temp.nightsRate = Array.ConvertAll(warehouseinfo.InnerText.Split(','), double.Parse);
+                                break;
+                            default:
+                                log.Warn("XML Node not found: {0}", warehouseinfo.Name);
                                 break;
                         }
                     }
 
                     whList.Add(temp);
-
+                    log.Info("{0} Warehouse added to list of warehouses", temp.Name);
                 }
             }
             catch
             {
+                log.Warn("Issues reading XML warehouse list reverting to default warehouse assumptions");
                 //int[] dprows = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
                 int[] cfc1dprows = { 32, 35, 38, 42, 73, 76, 79, 83, 32, 35, 38, 42 };
                 int[] avp1dprows = { 25, 28, 31, 35, 59, 62, 65, 69, 25, 28, 31, 35 };
