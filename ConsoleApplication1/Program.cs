@@ -29,7 +29,9 @@ namespace FlowPlanConstruction
 
         public static double[] avp1TPHHourlyGoalDays = { 0.80, 1.12, 1.12, 0.80, 1.08, 0.96, 1.12, 0.80, 1.12, 1.04 };
         public static double[] avp1TPHHourlyGoalNights= { 0.80, 1.12, 0.80, 1.12, 1.08, 0.96, 1.12, 0.80, 1.12, 1.04 };
-        public static double[] defaultTPHHourlyGoalDays = { 0.80, 1.12, 0.80, 1.12, 1.08, 0.96, 1.12, 0.80, 1.12, 1.04 };
+        public static double[] defaultTPHHourlyGoalDays = { .90, 1, .90,1,1,.7,.9, 1,.9, 1,.7};
+
+        public const string whXmlList = "Warehouses.xml";
 
         static void Main(string[] args)
         {
@@ -64,7 +66,7 @@ namespace FlowPlanConstruction
 
             warehouseList = getWHList();
 
-            File.WriteAllText("warehouses.xml", buildXmlFile(warehouseList));
+            File.WriteAllText(whXmlList, buildXmlFile(warehouseList));
 
             foreach (string wh in warehouses)
             {
@@ -524,30 +526,85 @@ namespace FlowPlanConstruction
 
         public static List<Warehouse> getWHList()
         {
-            int[] dprows = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
-            int[] cfc1dprows = { 32, 35, 38, 42, 73, 76, 79, 83, 32, 35, 38, 42 };
-            int[] avp1dprows = { 25, 28, 31, 35, 59, 62, 65, 69, 25, 28, 31, 35 };
-            int[] dfw1dprows = { 34, 37, 40, 44, 74, 77, 80, 84, 34, 37, 40, 44 };
-            int[] wfc2dprows = { 30, 33, 36, 40, 67, 70, 73, 77, 30, 33, 36, 40 };
-            int[] efc3dprows = { 26, 29, 32, 36, 61, 64, 67, 71, 25, 29, 32, 36 };
-            double[] daysRate = { };
-            double[] nightsRate = { };
-            double[] defaultGoalRates = { 47, 100, 24, 30, 110, 90, 40, 300, 2.5 };
-
             List<Warehouse> whList = new List<Warehouse>();
+            int[] dprows = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
+            try
+            {
+                XmlDocument warehouseOpen = new XmlDocument();
+                warehouseOpen.Load(whXmlList);
+                Warehouse temp = new Warehouse("", "", "", "", "", dprows, defaultTPHHourlyGoalDays, defaultTPHHourlyGoalDays, defaultTPHHourlyGoalDays);
 
-            Warehouse AVP1 = new Warehouse("AVP1", "Scranton/Wilkes-barre, PA", @"\\avp1afs01\Outbound\AVP Flow Plan\Blank Copy\", @"\\avp1afs01\Outbound\AVP Flow Plan\FlowPlanArchive\NotProcessed\", "DL-AVP1-Outbound@chewy.com", avp1dprows, avp1TPHHourlyGoalDays, defaultGoalRates, defaultGoalRates);
-            Warehouse CFC1 = new Warehouse("CFC1", "Clayton, IN", @"\\cfc1afs01\Outbound\Master Wash\Blank Copy\", @"\\cfc1afs01\Outbound\Master Wash\FlowPlanArchive\NotProcessed\", "DL-CFC-Outbound@chewy.com", cfc1dprows, defaultTPHHourlyGoalDays, defaultGoalRates, defaultGoalRates);
-            Warehouse DFW1 = new Warehouse("DFW1", "Dallas, TX", @"\\dfw1afs01\Outbound\Blank Flow Plan\", @"\\dfw1afs01\Outbound\FlowPlanArchive\NotProcessed\", "DL-DFW1-Outbound@chewy.com", dfw1dprows, avp1TPHHourlyGoalDays, defaultGoalRates, defaultGoalRates);
-            Warehouse EFC3 = new Warehouse("EFC3", "Mechanicsburg, PA", @"\\wh-pa-fs-01\OperationsDrive\Blank Flow Plan\", @"\\wh-pa-fs-01\OperationsDrive\FlowPlanArchive\NotProcessed\", "DL-EFC3-Outbound@chewy.com", efc3dprows, defaultTPHHourlyGoalDays, defaultGoalRates, defaultGoalRates);
-            Warehouse WFC2 = new Warehouse("WFC2", "Reno, NV", @"\\wfc2afs01\Outbound\Outbound Flow Planner\Blank Copy\", @"\\wfc2afs01\Outbound\Outbound Flow Planner\FlowPlanArchive\NotProcessed\", "DL-WFC2-Outbound@chewy.com", wfc2dprows, defaultTPHHourlyGoalDays, defaultGoalRates, defaultGoalRates);
+                foreach (XmlNode warehouse in warehouseOpen.DocumentElement.ChildNodes)
+                {
+                    temp = new Warehouse("", "", "", "", "", dprows, defaultTPHHourlyGoalDays, defaultTPHHourlyGoalDays, defaultTPHHourlyGoalDays);
+                    foreach (XmlNode warehouseinfo in warehouse.ChildNodes)
+                    {
+                        Console.WriteLine(warehouseinfo.InnerText);
+                        switch (warehouseinfo.Name)
+                        {
+                            case "Name":
+                                temp.Name = warehouseinfo.InnerText;
+                                break;
+                            case "Location":
+                                temp.Location = warehouseinfo.InnerText;
+                                break;
+                            case "BlankLoc":
+                                temp.blankCopyLoc = warehouseinfo.InnerText;
+                                break;
+                            case "ArchiveLoc":
+                                temp.archiveLoc = warehouseinfo.InnerText;
+                                break;
+                            case "DistroListTarget":
+                                temp.DistroList = warehouseinfo.InnerText;
+                                break;
+                            case "LaborPlanRows":
+                                temp.laborPlanInforRows = dprows;
+                                break;
+                            case "TPHDistro":
+                                temp.laborPlanInforRows = dprows;
+                                break;
+                            case "DaysRates":
+                                temp.laborPlanInforRows = dprows;
+                                break;
+                            case "NightsRates":
+                                temp.laborPlanInforRows = dprows;
+                                break;
+                        }
+                    }
+
+                    whList.Add(temp);
+
+                }
+            }
+            catch
+            {
+                //int[] dprows = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
+                int[] cfc1dprows = { 32, 35, 38, 42, 73, 76, 79, 83, 32, 35, 38, 42 };
+                int[] avp1dprows = { 25, 28, 31, 35, 59, 62, 65, 69, 25, 28, 31, 35 };
+                int[] dfw1dprows = { 34, 37, 40, 44, 74, 77, 80, 84, 34, 37, 40, 44 };
+                int[] wfc2dprows = { 30, 33, 36, 40, 67, 70, 73, 77, 30, 33, 36, 40 };
+                int[] efc3dprows = { 26, 29, 32, 36, 61, 64, 67, 71, 25, 29, 32, 36 };
+                double[] daysRate = { };
+                double[] nightsRate = { };
+                double[] defaultGoalRates = { 47, 100, 24, 30, 110, 90, 40, 300, 2.5 };
+
+                
+
+                Warehouse AVP1 = new Warehouse("AVP1", "Scranton/Wilkes-barre, PA", @"\\avp1afs01\Outbound\AVP Flow Plan\Blank Copy\", @"\\avp1afs01\Outbound\AVP Flow Plan\FlowPlanArchive\NotProcessed\", "DL-AVP1-Outbound@chewy.com", avp1dprows, avp1TPHHourlyGoalDays, defaultGoalRates, defaultGoalRates);
+                Warehouse CFC1 = new Warehouse("CFC1", "Clayton, IN", @"\\cfc1afs01\Outbound\Master Wash\Blank Copy\", @"\\cfc1afs01\Outbound\Master Wash\FlowPlanArchive\NotProcessed\", "DL-CFC-Outbound@chewy.com", cfc1dprows, defaultTPHHourlyGoalDays, defaultGoalRates, defaultGoalRates);
+                Warehouse DFW1 = new Warehouse("DFW1", "Dallas, TX", @"\\dfw1afs01\Outbound\Blank Flow Plan\", @"\\dfw1afs01\Outbound\FlowPlanArchive\NotProcessed\", "DL-DFW1-Outbound@chewy.com", dfw1dprows, avp1TPHHourlyGoalDays, defaultGoalRates, defaultGoalRates);
+                Warehouse EFC3 = new Warehouse("EFC3", "Mechanicsburg, PA", @"\\wh-pa-fs-01\OperationsDrive\Blank Flow Plan\", @"\\wh-pa-fs-01\OperationsDrive\FlowPlanArchive\NotProcessed\", "DL-EFC3-Outbound@chewy.com", efc3dprows, defaultTPHHourlyGoalDays, defaultGoalRates, defaultGoalRates);
+                Warehouse WFC2 = new Warehouse("WFC2", "Reno, NV", @"\\wfc2afs01\Outbound\Outbound Flow Planner\Blank Copy\", @"\\wfc2afs01\Outbound\Outbound Flow Planner\FlowPlanArchive\NotProcessed\", "DL-WFC2-Outbound@chewy.com", wfc2dprows, defaultTPHHourlyGoalDays, defaultGoalRates, defaultGoalRates);
 
 
-            whList.Add(AVP1);
-            whList.Add(CFC1);
-            whList.Add(DFW1);
-            whList.Add(EFC3);
-            whList.Add(WFC2);
+                whList.Add(AVP1);
+                whList.Add(CFC1);
+                whList.Add(DFW1);
+                whList.Add(EFC3);
+                whList.Add(WFC2);
+            }
+
+
 
             return whList;
         }
