@@ -14,6 +14,8 @@ namespace FlowPlanConstruction
         private string _blankCopyLoc;
         private string _archiveLocation;
         private string _distroList;
+        private double _handOffPercentage;
+        private double _VCPUwageRate;
 
         private int[] _laborPlanInforRows;
         private double[] _tphdistrobution;
@@ -77,7 +79,16 @@ namespace FlowPlanConstruction
             get { return _nightsStaffingRates; }
             set { _nightsStaffingRates = value; }
         }
-
+        public double HandoffPercent
+        {
+            get { return _handOffPercentage;  }
+            set { _handOffPercentage = value; }
+        }
+        public double VCPUWageRate
+        {
+            get { return _VCPUwageRate; }
+            set { _VCPUwageRate = value; }
+        }
         //public static Warehouse CreatewarehouseFromXmlString(string xmlWarehouseData)
         //{
         //try

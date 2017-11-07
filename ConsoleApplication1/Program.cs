@@ -39,6 +39,7 @@ namespace FlowPlanConstruction
         public static double[] avp1TPHHourlyGoalDays = { 0.80, 1.12, 1.12, 0.80, 1.08, 0.96, 1.12, 0.80, 1.12, 1.04 };
         public static double[] avp1TPHHourlyGoalNights= { 0.80, 1.12, 0.80, 1.12, 1.08, 0.96, 1.12, 0.80, 1.12, 1.04 };
         public static double[] defaultTPHHourlyGoalDays = { .90, 1, .90,1,1,.7,.9, 1,.9, 1,.7};
+        private static double defaultBackLogHandoff = .46;
         
         static void Main(string[] args)
         {
@@ -57,17 +58,27 @@ namespace FlowPlanConstruction
 
             foreach( Warehouse wh in warehouseList)
             {
-                if(!debugMode && wh.Name =="AVP1")
+                if(!debugMode)// && wh.Name =="AVP1")
                 {
+                    log.Info("Debug mode disabled checking process flags.");
                     if (runLaborPlan)
+                    {
+                        log.Info("Labor Plan process Initalized for {0}", wh.Name);
                         wh.laborPlanInforRows = obtainLaborPlanInfo(wh.laborPlanInforRows, wh.Name, laborplaninfo, ref runLaborPlanPopulate);
+                    }
+                        
                     if (runArchive)
+                    {
+                        log.Info("Archive process Initalized for {0}", wh.Name);
                         CleanUpDirectories(wh.blankCopyLoc, wh.archiveLoc);
+                    }
+                        
                     if(runCustom)
                     {
-                        foreach(string shift in shifts)
+                        log.Info("Flow Plan Customization process Initalized for {0}", wh.Name);
+                        foreach (string shift in shifts)
                         {
-                            customizeFlowPlan(wh.blankCopyLoc, wh.Name, shift, runLaborPlanPopulate, laborplaninfo, wh.DistroList);
+                            customizeFlowPlan(wh.blankCopyLoc, wh.Name, shift, runLaborPlanPopulate, laborplaninfo, wh.DistroList, wh.HandoffPercent, wh.VCPUWageRate);
                         }
                     }
                 }
@@ -233,7 +244,7 @@ namespace FlowPlanConstruction
             return dprows; // we want to add the data to the flow planners
         }
 
-        private static void customizeFlowPlan(string newFileDirectory, string warehouse, string shift,bool laborPlanInfoAvaliable, double[] laborPlanInformation, string distrobutionList)
+        private static void customizeFlowPlan(string newFileDirectory, string warehouse, string shift,bool laborPlanInfoAvaliable, double[] laborPlanInformation, string distrobutionList, double backlogHandoffPercent, double VCPUWageRate)// this may need restructuring to make it more readable keep and eye on for future improvements
         {
             log.Info("Begining {0} {1} file customization process", warehouse, shift);
             //define Excel Application for the Creation Process
@@ -297,6 +308,8 @@ namespace FlowPlanConstruction
             customFPDestinationSOSWKST.Cells[4, 9].value = System.DateTime.Now.ToString("yyyy-MM-dd");
             customFPDestinationSOSWKST.Cells[5, 9].value = shift;
 
+            log.Info("Start of shift information updated: Warehouse: {0} Date: {1} Shift: {2}", warehouse, System.DateTime.Now.ToString("yyyy-MM-dd"), shift);
+
             if (laborPlanInfoAvaliable)
             {
                 switch (shift)
@@ -351,6 +364,13 @@ namespace FlowPlanConstruction
 
             //Master Data Configuration
             customFlowPlanDestinationMasterDataWKST.Cells[30, 8].value = distrobutionList;
+            log.Info("Master Data distrobution list updated to {0}", distrobutionList);
+            customFlowPlanDestinationMasterDataWKST.Cells[12, 14].value = backlogHandoffPercent;
+            log.Info("Master Data backlog handoff percentage is updated to {0}", backlogHandoffPercent);
+            customFlowPlanDestinationMasterDataWKST.Cells[18, 17].value = VCPUWageRate;
+            log.Info("Master Data VCPU wage rate is updated to {0}", VCPUWageRate);
+
+            log.Info("Master data sections update completed");
 
             //Hourly ST 
             //tHis section is where we are going to read the current set values when we archive to allow the team to update the values and they will stick this means that i need to create and XML representation of each warehouse to store the defaults on both nights and days
@@ -379,7 +399,7 @@ namespace FlowPlanConstruction
                     }
                     catch (IOException)
                     {
-                    log.Fatal("IOException thrown");
+                    log.Fatal("File {0} unable to be removed, currently in use.", saveFilename + ".xlsm");
                     }
                 }
 
@@ -462,6 +482,8 @@ namespace FlowPlanConstruction
                 CreateNewChildXmlNode(warehousesXML, warehouse, "BlankLoc", wh.blankCopyLoc.ToString());
                 CreateNewChildXmlNode(warehousesXML, warehouse, "ArchiveLoc", wh.archiveLoc.ToString());
                 CreateNewChildXmlNode(warehousesXML, warehouse, "DistroListTarget", wh.DistroList.ToString());
+                CreateNewChildXmlNode(warehousesXML, warehouse, "HandoffPercent", wh.HandoffPercent.ToString());
+                CreateNewChildXmlNode(warehousesXML, warehouse, "VCPUWageRate", wh.VCPUWageRate.ToString());
                 CreateNewChildXmlNode(warehousesXML, warehouse, "LaborPlanRows", string.Join(",", wh.laborPlanInforRows));
                 CreateNewChildXmlNode(warehousesXML, warehouse, "TPHDistro", string.Join(",", wh.tphDistro));
                 CreateNewChildXmlNode(warehousesXML, warehouse, "DaysRates", string.Join(",", wh.daysRate));
@@ -509,6 +531,12 @@ namespace FlowPlanConstruction
                                 break;
                             case "DistroListTarget":
                                 temp.DistroList = warehouseinfo.InnerText;
+                                break;
+                            case "HandoffPercent":
+                                temp.HandoffPercent = double.Parse(warehouseinfo.InnerText);
+                                break;
+                            case "VCPUWageRate":
+                                temp.VCPUWageRate = double.Parse(warehouseinfo.InnerText);
                                 break;
                             case "LaborPlanRows":
                                 temp.laborPlanInforRows = Array.ConvertAll(warehouseinfo.InnerText.Split(','), int.Parse);
