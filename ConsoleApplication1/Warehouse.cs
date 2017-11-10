@@ -14,6 +14,7 @@ namespace FlowPlanConstruction
         private string _blankCopyLoc;
         private string _archiveLocation;
         private string _distroList;
+
         private double _handOffPercentage;
         private double _VCPUwageRate;
 
@@ -21,6 +22,7 @@ namespace FlowPlanConstruction
         private double[] _tphdistrobution;
         private double[] _daysStaffingRates;
         private double[] _nightsStaffingRates;
+       
 
         public Warehouse(string name, string location, string blankCopyLoc, string archiveLoc, string distrolist, int[] laborPlanInfoRows, double[] tphDistro, double[] daysRates, double[] nightsRates)
         {

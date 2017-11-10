@@ -30,17 +30,26 @@ namespace FlowPlanConstruction
         public const string chargeDataSrcPath = @"\\cfc1afs01\Operations-Analytics\RAW Data\chargepattern.csv";
         public const string masterFlowPlanLocation = @"\\CFC1AFS01\Operations-Analytics\Projects\Flow Plan\Outbound Flow Plan v2.0(MCRC).xlsm";
         public const string laborPlanLocationation = @"\\chewy.local\bi\BI Community Content\Finance\Labor Models\";
-        public const string whXmlList = "Warehouses.xml";
+        public const string whXmlList = @"\\cfc1afs01\Operations-Analytics\Projects\Flow Plan\Release\Warehouses.xml";
+        public const string masterPreShiftCheckList = @"\\cfc1afs01\Operations-Analytics\Projects\Documentation\Standard Work\";
 
         //shiift defenition
-        public static string[] shifts = { "Days", "Nights", "" };
+        public static string[] shifts = { "Days", "Nights", "Blank" };
 
         //rate defaults
         public static double[] avp1TPHHourlyGoalDays = { 0.80, 1.12, 1.12, 0.80, 1.08, 0.96, 1.12, 0.80, 1.12, 1.04 };
         public static double[] avp1TPHHourlyGoalNights= { 0.80, 1.12, 0.80, 1.12, 1.08, 0.96, 1.12, 0.80, 1.12, 1.04 };
         public static double[] defaultTPHHourlyGoalDays = { .90, 1, .90,1,1,.7,.9, 1,.9, 1,.7};
         private static double defaultBackLogHandoff = .46;
-        
+        public static double singlesPercentSplit = .33;
+        public static double shiftLength = 9.5;
+        public static double breakModifier = .7;
+        public static double UPC = 2.5;
+        public static double defaultMultiRate = 47;
+
+        //add a way to edit the XML file external to this program could be stand alone configuration that would allow user to kick off a run of the constructor with new perimeters....?
+
+
         static void Main(string[] args)
         {
             //setup log file information
@@ -58,7 +67,7 @@ namespace FlowPlanConstruction
 
             foreach( Warehouse wh in warehouseList)
             {
-                if(!debugMode)// && wh.Name =="AVP1")
+                if(!debugMode && wh.Name =="AVP1")
                 {
                     log.Info("Debug mode disabled checking process flags.");
                     if (runLaborPlan)
@@ -79,6 +88,8 @@ namespace FlowPlanConstruction
                         foreach (string shift in shifts)
                         {
                             customizeFlowPlan(wh.blankCopyLoc, wh.Name, shift, runLaborPlanPopulate, laborplaninfo, wh.DistroList, wh.HandoffPercent, wh.VCPUWageRate);
+                            if(wh.Name == "AVP1" || wh.Name == "CFC1")
+                                CustomizePreShift(laborplaninfo, shift, wh.blankCopyLoc, wh.Name);
                         }
                     }
                 }
@@ -335,6 +346,7 @@ namespace FlowPlanConstruction
                         customFPDestinationSOSWKST.Cells[12, 3].value = laborPlanInformation[7];//nights ordered
                         break;
                     default:
+                        customFPDestinationSOSWKST.Cells[5, 9].value = "Days";
                         break;
                 }
                 log.Info("Labor Plan information Updated in start of shift");
@@ -381,10 +393,10 @@ namespace FlowPlanConstruction
 
                 //save copy of file off some where
                 string saveFilename = newFileDirectory 
-                    + customFPDestinationSOSWKST.Cells[3, 9].value 
-                    + " Flow Plan V " + customFPDestinationSOSWKST.Cells[2,9].value 
+                    + warehouse
                     + " "
-                    + shift 
+                    + shift
+                    + " Flow Plan V " + customFPDestinationSOSWKST.Cells[2,9].value  
                     + " " 
                     + System.DateTime.Now.ToString("yyyy-MM-dd");
 
@@ -455,8 +467,15 @@ namespace FlowPlanConstruction
 
         public static void GracefulExit(List<Warehouse> warehouseList)
         {
-            File.WriteAllText(whXmlList, buildXmlFile(warehouseList));
-            log.Info("Warehouse list written to XML file for future use.");
+            try
+            {
+                File.WriteAllText(whXmlList, buildXmlFile(warehouseList));
+                log.Info("Warehouse list written to XML file for future use.");
+            }catch(Exception e)
+            {
+                log.Fatal(e);
+            }
+            
             LogManager.Flush();
         }
         public void CrashshutDownApplication(Exception e)
@@ -592,6 +611,258 @@ namespace FlowPlanConstruction
 
 
             return whList;
+        }
+
+        public static void CustomizePreShift (double[] laborPlanInfo, string shift, string blankLocation, string warehouse)//need to enhance logging and pull calculations out of this function.
+        {
+
+            //define Excel Application for the Creation Process
+            Excel.Application CustomisePreShiftApplication = null;
+            CustomisePreShiftApplication = new Excel.Application();
+            CustomisePreShiftApplication.Visible = visibilityFlag;
+            CustomisePreShiftApplication.DisplayAlerts = alertsFlag;
+
+            //create the empty containers for the excel application
+            Excel.Workbooks customizePreShiftWorkBookCollection = null;
+            Excel.Workbook customSupPreShiftDestinationWB = null;
+            Excel.Worksheet SupINDWKST = null;
+            Excel.Worksheet SupPACKWKST = null;
+            Excel.Worksheet SupPICKWKST = null;
+            Excel.Worksheet SupDockWKST = null;
+
+            Excel.Workbook customLeadPreShiftDestinationWB = null;
+            Excel.Worksheet LeadINDWKST = null;
+            Excel.Worksheet LeadPACKWKST = null;
+            Excel.Worksheet LeadPICKWKST = null;
+            Excel.Worksheet LeadDockWKST = null;
+
+            log.Info("Excel Empty containers created for Pre-Shift Documentation");
+
+            customizePreShiftWorkBookCollection = CustomisePreShiftApplication.Workbooks;
+            try
+            {
+                log.Info("Opening Master Sup Preshift at {0}", masterPreShiftCheckList);
+                customSupPreShiftDestinationWB = customizePreShiftWorkBookCollection.Open(masterPreShiftCheckList + "Standard Work - Supervisors(MCRC).xlsx", false, false);
+            }catch
+            {
+                log.Fatal("Could not open master Preshift, skipping {0}' customization", shift);
+                return;
+            }
+
+            try
+            {
+                log.Info("Opening Master Lead Preshift at {0}", masterPreShiftCheckList);
+                customLeadPreShiftDestinationWB = customizePreShiftWorkBookCollection.Open(masterPreShiftCheckList + "Standard Work - Leads(MCRC).xlsx", false, false);
+            }
+            catch
+            {
+                log.Fatal("Could not open master Preshift, skipping {0}' customization", shift);
+                return;
+            }
+
+            SupINDWKST = customSupPreShiftDestinationWB.Worksheets.Item["Induction Sup"];
+            SupPACKWKST = customSupPreShiftDestinationWB.Worksheets.Item["Pack Sup"];
+            SupPICKWKST = customSupPreShiftDestinationWB.Worksheets.Item["Pick Sup"];
+            SupDockWKST = customSupPreShiftDestinationWB.Worksheets.Item["Dock and VNA Sup"];
+
+            LeadINDWKST = customLeadPreShiftDestinationWB.Worksheets.Item["Induction Lead"];
+            LeadPACKWKST = customLeadPreShiftDestinationWB.Worksheets.Item["Pack Lead"];
+            LeadPICKWKST = customLeadPreShiftDestinationWB.Worksheets.Item["Pick Lead"];
+            LeadDockWKST = customLeadPreShiftDestinationWB.Worksheets.Item["Dock Lead"];
+
+
+            if (shift == "Days")//should really search for the Item names in the event that we make changes i can still find where to put the info...
+            {
+                SupINDWKST.Cells[13, 7].value = Math.Round(laborPlanInfo[2]);
+                SupINDWKST.Cells[14, 7].value = laborPlanInfo[1];
+                SupINDWKST.Cells[4, 3].value = laborPlanInfo[1];
+
+                SupPACKWKST.Cells[13, 7].value = Math.Round(laborPlanInfo[2]);
+                SupPACKWKST.Cells[14, 7].value = laborPlanInfo[1];
+                SupPACKWKST.Cells[4, 3].value = calcTotalSinglesShip(laborPlanInfo[2]);
+                SupPACKWKST.Cells[5, 3].value = calcSinglesHourlyShip(laborPlanInfo[2]);
+
+                SupPICKWKST.Cells[13, 7].value = Math.Round(laborPlanInfo[2]);
+                SupPICKWKST.Cells[14, 7].value = laborPlanInfo[1];
+                SupPICKWKST.Cells[4, 3].value = laborPlanInfo[1];
+                SupPICKWKST.Cells[5, 3].value = calcTotalHourlyShip(laborPlanInfo[2]);
+                SupPICKWKST.Cells[6, 3].value = calcTotalHourlyShip(laborPlanInfo[2]) * breakModifier;
+                SupPICKWKST.Cells[7, 3].value = calcMultiPickers(calcMultisHourlyShip(laborPlanInfo[2]));
+                SupPICKWKST.Cells[8, 3].value = calcTotalMultiShip(laborPlanInfo[2]);
+                SupPICKWKST.Cells[9, 3].value = calcMultisHourlyShip(laborPlanInfo[2]);
+                SupPICKWKST.Cells[10, 3].value = calcMultisHourlyShip(laborPlanInfo[2]) * breakModifier;
+
+                SupDockWKST.Cells[13, 7].value = Math.Round(laborPlanInfo[2]);
+                SupDockWKST.Cells[14, 7].value = laborPlanInfo[1];
+                SupDockWKST.Cells[4, 3].value = calcDocksHourlycont(laborPlanInfo[2]);
+
+                LeadINDWKST.Cells[13, 7].value = Math.Round(laborPlanInfo[2]);
+                LeadINDWKST.Cells[14, 7].value = laborPlanInfo[1];
+                LeadINDWKST.Cells[4, 3].value = laborPlanInfo[1];
+
+                LeadPACKWKST.Cells[13, 7].value = Math.Round(laborPlanInfo[2]);
+                LeadPACKWKST.Cells[14, 7].value = laborPlanInfo[1];
+                LeadPACKWKST.Cells[4, 3].value = calcTotalSinglesShip(laborPlanInfo[2]);
+                LeadPACKWKST.Cells[5, 3].value = calcSinglesHourlyShip(laborPlanInfo[2]);
+
+                LeadPICKWKST.Cells[13, 7].value = Math.Round(laborPlanInfo[2]);
+                LeadPICKWKST.Cells[14, 7].value = laborPlanInfo[1];
+                LeadPICKWKST.Cells[4, 3].value = laborPlanInfo[1];
+                LeadPICKWKST.Cells[5, 3].value = calcTotalHourlyShip(laborPlanInfo[2]);
+                LeadPICKWKST.Cells[6, 3].value = calcTotalHourlyShip(laborPlanInfo[2]) * breakModifier;
+                LeadPICKWKST.Cells[7, 3].value = calcMultiPickers(calcMultisHourlyShip(laborPlanInfo[2]));
+                LeadPICKWKST.Cells[8, 3].value = calcTotalMultiShip(laborPlanInfo[2]);
+                LeadPICKWKST.Cells[9, 3].value = calcMultisHourlyShip(laborPlanInfo[2]);
+                LeadPICKWKST.Cells[10, 3].value = calcMultisHourlyShip(laborPlanInfo[2]) * breakModifier;
+
+                LeadDockWKST.Cells[13, 7].value = Math.Round(laborPlanInfo[2]);
+                LeadDockWKST.Cells[14, 7].value = laborPlanInfo[1];
+                LeadDockWKST.Cells[4, 3].value = calcDocksHourlycont(laborPlanInfo[2]);
+            }
+            else
+            {
+                SupINDWKST.Cells[13, 7].value = Math.Round(laborPlanInfo[6]);
+                SupINDWKST.Cells[14, 7].value = laborPlanInfo[5];
+                SupINDWKST.Cells[4, 3].value = laborPlanInfo[5];
+
+                SupPACKWKST.Cells[13, 7].value = Math.Round(laborPlanInfo[6]);
+                SupPACKWKST.Cells[14, 7].value = laborPlanInfo[5];
+                SupPACKWKST.Cells[4, 3].value = calcTotalSinglesShip(laborPlanInfo[6]);
+                SupPACKWKST.Cells[5, 3].value = calcSinglesHourlyShip(laborPlanInfo[6]);
+
+                SupPICKWKST.Cells[13, 7].value = Math.Round(laborPlanInfo[6]);
+                SupPICKWKST.Cells[14, 7].value = laborPlanInfo[5];
+                SupPICKWKST.Cells[4, 3].value = Math.Round(laborPlanInfo[6]);
+                SupPICKWKST.Cells[5, 3].value = calcTotalHourlyShip(laborPlanInfo[6]);
+                SupPICKWKST.Cells[6, 3].value = calcTotalHourlyShip(laborPlanInfo[6]) * breakModifier;
+                SupPICKWKST.Cells[7, 3].value = calcMultiPickers(calcMultisHourlyShip(laborPlanInfo[6]));
+                SupPICKWKST.Cells[8, 3].value = calcTotalMultiShip(laborPlanInfo[6]);
+                SupPICKWKST.Cells[9, 3].value = calcMultisHourlyShip(laborPlanInfo[6]);
+                SupPICKWKST.Cells[10, 3].value = calcMultisHourlyShip(laborPlanInfo[6]) * breakModifier;
+
+                SupDockWKST.Cells[13, 7].value = Math.Round(laborPlanInfo[6]);
+                SupDockWKST.Cells[14, 7].value = laborPlanInfo[5];
+                SupDockWKST.Cells[4, 3].value = calcDocksHourlycont(laborPlanInfo[6]);
+
+                LeadINDWKST.Cells[13, 7].value = Math.Round(laborPlanInfo[6]);
+                LeadINDWKST.Cells[14, 7].value = laborPlanInfo[5];
+                LeadINDWKST.Cells[4, 3].value = laborPlanInfo[5];
+
+                LeadPACKWKST.Cells[13, 7].value = Math.Round(laborPlanInfo[6]);
+                LeadPACKWKST.Cells[14, 7].value = laborPlanInfo[5];
+                LeadPACKWKST.Cells[4, 3].value = calcTotalSinglesShip(laborPlanInfo[6]);
+                LeadPACKWKST.Cells[5, 3].value = calcSinglesHourlyShip(laborPlanInfo[6]);
+
+                LeadPICKWKST.Cells[13, 7].value = Math.Round(laborPlanInfo[6]);
+                LeadPICKWKST.Cells[14, 7].value = laborPlanInfo[5];
+                LeadPICKWKST.Cells[4, 3].value = Math.Round(laborPlanInfo[6]);
+                LeadPICKWKST.Cells[5, 3].value = calcTotalHourlyShip(laborPlanInfo[6]);
+                LeadPICKWKST.Cells[6, 3].value = calcTotalHourlyShip(laborPlanInfo[6]) * breakModifier;
+                LeadPICKWKST.Cells[7, 3].value = calcMultiPickers(calcMultisHourlyShip(laborPlanInfo[6]));
+                LeadPICKWKST.Cells[8, 3].value = calcTotalMultiShip(laborPlanInfo[6]);
+                LeadPICKWKST.Cells[9, 3].value = calcMultisHourlyShip(laborPlanInfo[6]);
+                LeadPICKWKST.Cells[10, 3].value = calcMultisHourlyShip(laborPlanInfo[6]) * breakModifier;
+
+                LeadDockWKST.Cells[13, 7].value = Math.Round(laborPlanInfo[6]);
+                LeadDockWKST.Cells[14, 7].value = laborPlanInfo[5];
+                LeadDockWKST.Cells[4, 3].value = calcDocksHourlycont(laborPlanInfo[6]);
+            }
+            if (!Directory.Exists(blankLocation + @"\Preshifts\"))
+                Directory.CreateDirectory(blankLocation + @"\Preshifts\");
+            string saveFileName = blankLocation + @"\Preshifts\" +
+                warehouse + " "+
+                shift;
+            try
+            {
+                customSupPreShiftDestinationWB.SaveAs(saveFileName + " Sup Pre-Shift Check List.xlsx");
+                log.Info("{0} {1} Preshift Saved at {2}", warehouse, shift, saveFileName + " Sup Pre-Shift Check List.xlsx");
+            }
+            catch
+            {
+                try
+                {
+                    log.Warn("Issue saving {0}'s Sup Preshift, trying secondary save function.", shift);
+                    customSupPreShiftDestinationWB.SaveAs(saveFileName + " Sup Pre-Shift Check List.new.xlsx");
+                }
+                catch
+                {
+                    log.Fatal("Unable to save {0}'s Sup Preshift skipping....");
+                }
+            }
+            try
+            {
+                customLeadPreShiftDestinationWB.SaveAs(saveFileName + " Lead Pre-Shift Check List.xlsx");
+                log.Info("{0} {1} Preshift Saved at {2}", warehouse, shift, saveFileName + " Lead Pre-Shift Check List.xlsx");
+            }
+            catch
+            {
+                try
+                {
+                    log.Warn("Issue saving {0}'s Lead Preshift, trying secondary save function.", shift);
+                    customLeadPreShiftDestinationWB.SaveAs(saveFileName + " Lead Pre-Shift Check List.new.xlsx");
+                }
+                catch
+                {
+                    log.Fatal("Unable to save {0}'s Lead Preshift skipping....");
+                }
+             }
+           
+
+            customizePreShiftWorkBookCollection = null;
+            customSupPreShiftDestinationWB = null;
+            customLeadPreShiftDestinationWB = null;
+            SupINDWKST = null;
+            SupPACKWKST = null;
+            SupPICKWKST = null;
+            SupDockWKST = null;
+            LeadINDWKST = null;
+            LeadPACKWKST = null;
+            LeadPICKWKST = null;
+            LeadDockWKST = null;
+            CustomisePreShiftApplication.Quit();
+            CustomisePreShiftApplication = null;
+
+        }
+
+        public static double calcTotalHourlyShip(double shipGoal)
+        {
+
+            return Math.Round(shipGoal / shiftLength);
+        }
+
+        public static double calcTotalSinglesShip(double shipGoal)
+        {
+
+            return Math.Round(shipGoal * singlesPercentSplit);
+        }
+
+        public static double calcSinglesHourlyShip(double shipGoal)
+        {
+
+            return Math.Round(shipGoal / shiftLength * singlesPercentSplit);
+        }
+
+        public static double calcTotalMultiShip(double shipGoal)
+        {
+
+            return Math.Round(shipGoal * (1-singlesPercentSplit));
+        }
+
+        public static double calcMultisHourlyShip(double shipGoal)
+        {
+
+            return Math.Round(shipGoal / shiftLength * (1-singlesPercentSplit));
+        }
+
+        public static double calcDocksHourlycont(double shipGoal)
+        {
+
+            return Math.Round(shipGoal/ shiftLength / UPC);
+        }
+        
+        public static double calcMultiPickers(double shipGoal)
+        {
+            return Math.Round(shipGoal / defaultMultiRate);
         }
     }
 }
