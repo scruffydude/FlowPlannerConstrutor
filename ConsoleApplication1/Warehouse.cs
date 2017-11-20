@@ -14,17 +14,27 @@ namespace FlowPlanConstruction
         private string _blankCopyLoc;
         private string _archiveLocation;
         private string _distroList;
+        private bool _preShiftFlag;
+        private bool _laborPlanInfoPop;
+        private bool _preShiftInfoPop;
+        
 
         private double _handOffPercentage;
         private double _VCPUwageRate;
+        private int _handOffDeadMan;
 
         private int[] _laborPlanInforRows;
         private double[] _tphdistrobution;
         private double[] _daysStaffingRates;
         private double[] _nightsStaffingRates;
-       
 
-        public Warehouse(string name, string location, string blankCopyLoc, string archiveLoc, string distrolist, int[] laborPlanInfoRows, double[] tphDistro, double[] daysRates, double[] nightsRates)
+
+        public Warehouse(string name, string blankCopyLoc,
+            string archiveLoc, int[] laborPlanInfoRows, double[] daysRates, 
+            double[] nightsRates, double[] tphDistro, string location = "Unknown", 
+            string distrolist = "camos@chewy.com", bool preShiftFlag = true, 
+            bool laborPlanInfoPop = true, bool preShiftInfoPop = true, 
+            double handOffPercentage = .46, int handOffDeadman = 24000)
         {
             _name = name;
             _location = location;
@@ -35,6 +45,11 @@ namespace FlowPlanConstruction
             _tphdistrobution = tphDistro;
             _daysStaffingRates = daysRates;
             _nightsStaffingRates = nightsRates;
+            _preShiftFlag = preShiftFlag;
+            _preShiftInfoPop = preShiftInfoPop;
+            _laborPlanInfoPop = laborPlanInfoPop;
+            _handOffPercentage = HandoffPercent;
+            _handOffDeadMan = handOffDeadman;
         }
         public string Name
         {
@@ -91,60 +106,26 @@ namespace FlowPlanConstruction
             get { return _VCPUwageRate; }
             set { _VCPUwageRate = value; }
         }
-        //public static Warehouse CreatewarehouseFromXmlString(string xmlWarehouseData)
-        //{
-        //try
-        //{
-        //    XmlDocument warehouseData = new XmlDocument();
-
-        //    warehouseData.LoadXml(xmlWarehouseData);
-
-        //    int currentHitPoints = Convert.ToInt32(warehouseData.SelectSingleNode("/Player/Stats/CurrentHitPoints").InnerText);
-        //    int maximumHitPoints = Convert.ToInt32(warehouseData.SelectSingleNode("/Player/Stats/MaximumHitPoints").InnerText);
-        //    int gold = Convert.ToInt32(warehouseData.SelectSingleNode("/Player/Stats/Gold").InnerText);
-        //    int experiencePoints = Convert.ToInt32(warehouseData.SelectSingleNode("/Player/Stats/ExperiencePoints").InnerText);
-
-        //    Warehouse warehouses = new Warehouse(currentHitPoints, maximumHitPoints, gold, experiencePoints);
-
-        //    int currentLocationID = Convert.ToInt32(warehouseData.SelectSingleNode("/Player/Stats/CurrentLocation").InnerText);
-
-        //    //if (warehouseData.SelectSingleNode("/Player/Stats/CurrentWeapon") != null)
-        //    //{
-        //    //    int currentWeaponID = Convert.ToInt32(warehouseData.SelectSingleNode("/Player/Stats/CurrentWeapon").InnerText);
-        //    //    player.CurrentWeapon = (Weapon)World.ItemByID(currentWeaponID);
-        //    //}
-
-        //    //foreach (XmlNode node in warehouseData.SelectNodes("/Player/InventoryItems/InventoryItem"))
-        //    //{
-        //    //    int id = Convert.ToInt32(node.Attributes["ID"].Value);
-        //    //    int quantity = Convert.ToInt32(node.Attributes["Quantity"].Value);
-
-        //    //    for (int i = 0; i < quantity; i++)
-        //    //    {
-        //    //        player.AddItemToInventory(World.ItemByID(id));
-        //    //    }
-        //    //}
-
-        //    foreach (XmlNode node in warehouseData.SelectNodes("/Player/PlayerQuests/PlayerQuest"))
-        //    {
-        //        int id = Convert.ToInt32(node.Attributes["ID"].Value);
-        //        bool isCompleted = Convert.ToBoolean(node.Attributes["IsCompleted"].Value);
-
-        //        PlayerQuest playerQuest = new PlayerQuest(World.QuestByID(id));
-        //        playerQuest.IsCompleted = isCompleted;
-
-        //        warehouses.Quests.Add(playerQuest);
-        //    }
-
-        //    return warehouses;
-        //}
-        //catch
-        //{
-        //    // If there was an error with the XML data, return a default player object
-        //    return Player.CreateDefaultPlayer();
-
-        //}
-        //}
+        public bool PreShiftFlag
+        {
+            get { return _preShiftFlag; }
+            set { _preShiftFlag = value; }
+        }
+        public int DeadMan
+        {
+            get { return _handOffDeadMan; }
+            set { _handOffDeadMan = value; }
+        }
+        public bool laborInfoPop
+        {
+            get { return _laborPlanInfoPop; }
+            set { _laborPlanInfoPop = value; }
+        }
+        public bool preshiftInfoPop
+        {
+            get { return _preShiftInfoPop; }
+            set { _preShiftInfoPop = value; }
+        }
 
         public string ToXmlString()
         {
