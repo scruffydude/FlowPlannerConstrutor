@@ -489,7 +489,9 @@ namespace FlowPlanConstruction
 
             log.Info("Start of shift information updated: Warehouse: {0} Date: {1} Shift: {2}", warehouse, System.DateTime.Now.ToString("yyyy-MM-dd"), shift);
 
-            if (laborPlanInfoAvaliable && laborPlanPop)
+
+
+            if(laborPlanInfoAvaliable && laborPlanPop)
             {
                 switch (shift)
                 {
@@ -519,7 +521,11 @@ namespace FlowPlanConstruction
                 }
                 log.Info("Labor Plan information Updated in start of shift");
             }
-            else log.Warn("Labor Plan Information skipped");
+            else if (laborPlanPop)
+            {
+                log.Fatal("{0} Labor Plan Information skipped due to lack of Plan Info", warehouse);
+            }
+            else log.Warn("{0} Labor Plan Information skipped via Populate flag", warehouse);
 
             //Hourly TPH Configuration
             for (int i = 0; i < 10; i++)
@@ -550,6 +556,7 @@ namespace FlowPlanConstruction
 
             //Hourly Staffing Tracker
 
+
             //Master Data Configuration
             customFlowPlanDestinationMasterDataWKST.Cells[30, 8].value = distrobutionList;
             log.Info("Master Data distrobution list updated to {0}", distrobutionList);
@@ -561,7 +568,7 @@ namespace FlowPlanConstruction
             log.Info("Master Data Dead Man is updated to {0}", DeadMan);
 
 
-            log.Info("Master data sections update completed");
+            log.Info("Master Data sections update completed");
 
             //Hourly ST 
             //tHis section is where we are going to read the current set values when we archive to allow the team to update the values and they will stick this means that i need to create and XML representation of each warehouse to store the defaults on both nights and days
