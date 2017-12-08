@@ -27,6 +27,8 @@ namespace FlowPlanConstruction
         private double[] _tphdistrobution;
         private double[] _daysStaffingRates;
         private double[] _nightsStaffingRates;
+        private double[] _daysChargePattern;
+        private double[] _nightsChargePattern;
 
 
         public Warehouse(string name, string blankCopyLoc,
@@ -126,7 +128,20 @@ namespace FlowPlanConstruction
             get { return _preShiftInfoPop; }
             set { _preShiftInfoPop = value; }
         }
+        public double[] daysChargePattern
+        {
+            get { return _daysChargePattern; }
+            set { _daysChargePattern = value; }
+        }
+        public double[] nightsChargePattern
+        {
+            get { return _nightsChargePattern; }
+            set { _nightsChargePattern = value; }
+        }
+        public void buildDaysChargePattern(double[] srcData)
+        {
 
+        }
         public string ToXmlString()
         {
             XmlDocument warehouseData = new XmlDocument();

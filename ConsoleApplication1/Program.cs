@@ -9,6 +9,7 @@ using Marshal = System.Runtime.InteropServices;
 using System.Security.Principal;
 using NLog;
 using System.Xml;
+using System.Data;
 
 namespace FlowPlanConstruction
 {
@@ -17,7 +18,7 @@ namespace FlowPlanConstruction
         private static Logger log = LogManager.GetCurrentClassLogger();
 
         //section toggles
-        private const bool debugMode = false;
+        private const bool debugMode = true;
         public const bool runArchive = true;
         public const bool runLaborPlan = true;
         public const bool runCustom = true;
@@ -47,7 +48,13 @@ namespace FlowPlanConstruction
         public static double defaultMultiRate = 47;
 
         //add a way to edit the XML file external to this program could be stand alone configuration that would allow user to kick off a run of the constructor with new perimeters....?
+        //sql query
 
+        public static string prodConnectionString = "Data source=WMSSQL-READONLY.chewy.local;"
+               + "Initial Catalog=AAD;"
+               + "Persist Security Info=True;"
+               + "Trusted_connection=true";
+        public static string chargeQuery = "Use AAD go with item_order_quantity as (SELECT o.order_number,o.wh_id,COUNT(DISTINCT d.item_number) item_count,sum(d.qty) unit_qty FROM AAD.dbo.t_order o left join AAD.dbo.t_order_detail d on o.order_number = d.order_number and o.wh_id = d.wh_id where o.arrive_date > cast(getdate() - 60 as date) group by o.order_number,o.wh_id) select o.wh_id, cast(o.arrive_date as date) arrive_date, datepart(hour,o.arrive_date) arrive_hour, case when q.item_count = 1 then 'SINGLES' else 'MULTIS' end order_type, o.che_route, count(distinct o.order_number) order_ct, sum(q.unit_qty) unit_qty from AAD.dbo.t_order o left join item_order_quantity q on q.order_number = o.order_number and q.wh_id = o.wh_id where o.type_id = '31' and o.arrive_date > Cast(getdate() - 60 as date) group by cast(o.arrive_date as date), o.wh_id, datepart(hour,o.arrive_date), o.che_route, case when q.item_count = 1 then 'SINGLES' else 'MULTIS' end order by  cast(o.arrive_date as date), o.wh_id, datepart(hour,o.arrive_date), o.che_route, case when q.item_count = 1 then 'SINGLES' else 'MULTIS' end";
 
         static void Main(string[] args)
         {
@@ -98,7 +105,7 @@ namespace FlowPlanConstruction
             catch (Exception e)
             {
                 CrashshutDownApplication(e);
-    }
+             }
 
 
             GracefulExit(warehouseList);
@@ -534,29 +541,6 @@ namespace FlowPlanConstruction
             }
             log.Info("TPH assumptions Adjusted for AVP1");
 
-            //if (warehouse == "AVP1")
-            //    {
-            //        if(shift =="Days")
-            //    {
-            //        for (int i = 0; i < 10; i++)
-            //        {
-            //            customFlowPlanDestinationHOURLYTPHWKST.Cells[25, i + 4].value = avp1TPHHourlyGoalDays[i];
-            //        }
-            //    }else
-            //    {
-            //        for (int i = 0; i < 10; i++)
-            //        {
-            //            customFlowPlanDestinationHOURLYTPHWKST.Cells[25, i + 4].value = avp1TPHHourlyGoalNights[i];
-            //        }
-            //    }
-
-
-
-            //}
-
-            //Hourly Staffing Tracker
-
-
             //Master Data Configuration
             customFlowPlanDestinationMasterDataWKST.Cells[30, 8].value = distrobutionList;
             log.Info("Master Data distrobution list updated to {0}", distrobutionList);
@@ -704,6 +688,8 @@ namespace FlowPlanConstruction
                 CreateNewChildXmlNode(warehousesXML, warehouse, "DeadMan", wh.DeadMan.ToString());
                 CreateNewChildXmlNode(warehousesXML, warehouse, "LaborInfoPop", wh.laborInfoPop.ToString());
                 CreateNewChildXmlNode(warehousesXML, warehouse, "PreshiftInforPop", wh.preshiftInfoPop.ToString());
+                CreateNewChildXmlNode(warehousesXML, warehouse, "DaysChargePattern", string.Join(",", wh.daysChargePattern));
+                CreateNewChildXmlNode(warehousesXML, warehouse, "NightsChargePattern", string.Join(",", wh.nightsChargePattern));
             }
 
             return warehousesXML.InnerXml;
@@ -778,6 +764,12 @@ namespace FlowPlanConstruction
                                 break;
                             case "PreshiftInforPop":
                                 temp.preshiftInfoPop = bool.Parse(warehouseinfo.InnerText);
+                                break;
+                            case "DaysChargePattern":
+                                temp.daysChargePattern = Array.ConvertAll(warehouseinfo.InnerText.Split(','), double.Parse);
+                                break;
+                            case "NightsChargePattern":
+                                temp.nightsChargePattern = Array.ConvertAll(warehouseinfo.InnerText.Split(','), double.Parse);
                                 break;
                             default:
                                 log.Warn("XML Node not found: {0}", warehouseinfo.Name);
@@ -1035,7 +1027,24 @@ namespace FlowPlanConstruction
             CustomisePreShiftApplication = null;
 
         }
+        //public static void gatherRawChargeDate
+        //{
 
+        //    foreach(row in data)
+        //        {
+        //        switch col1
+        //    {
+        //            case "AVP1":
+        //                foreach (hour in day)
+        //                {
+        //                    avp1source[DateTime, hour] = avp1TPHHourlyGoalDays;
+
+        //                }
+        //                break;
+        //        }
+        //    }
+                
+        //}
         public static double calcTotalHourlyShip(double shipGoal)
         {
 
@@ -1076,7 +1085,35 @@ namespace FlowPlanConstruction
         {
             return Math.Round(shipGoal / defaultMultiRate);
         }
-    }
+
+        public static void GatherSQLData()
+        {
+
+            using (SqlConnection connection =
+                   new SqlConnection(prodConnectionString))
+            {
+                SqlCommand command =
+                    new SqlCommand(chargeQuery, connection);
+                connection.Open();
+
+                SqlDataReader reader = command.ExecuteReader();
+
+                Console.WriteLine("{0}, {1}, {2}, {3}, {4}", reader.GetName(0), reader.GetName(1), reader.GetName(2), reader.GetName(3), reader.GetName(4));
+                for (int x = 0; x < 5; x++)
+                {
+                    
+                }
+                int y = 2;
+                // Call Read before accessing data.
+                while (reader.Read())
+                {
+                   
+                }
+
+                // Call Close when done reading.
+                reader.Close();
+            }
+        }
 }
 
        
