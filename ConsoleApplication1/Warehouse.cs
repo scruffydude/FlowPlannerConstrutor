@@ -142,41 +142,42 @@ namespace FlowPlanConstruction
         {
 
         }
-        public string ToXmlString()
-        {
-            XmlDocument warehouseData = new XmlDocument();
 
-            // Create the "Stats" child node to hold the other player statistics nodes
-            XmlNode warehouse = warehouseData.CreateElement(_name);
-            warehouseData.AppendChild(warehouse);
+        //public string ToXmlString()
+        //{
+        //    XmlDocument warehouseData = new XmlDocument();
 
-            AddXmlAttributeToNode(warehouseData, warehouse, "ID", 1);
+        //    // Create the "Stats" child node to hold the other player statistics nodes
+        //    XmlNode warehouse = warehouseData.CreateElement(_name);
+        //    warehouseData.AppendChild(warehouse);
 
-            // Create the child nodes for the "warehouse" node
-            CreateNewChildXmlNode(warehouseData, warehouse, "Location", _location.ToString());
-            CreateNewChildXmlNode(warehouseData, warehouse, "BlankLoc", _blankCopyLoc.ToString());
-            CreateNewChildXmlNode(warehouseData, warehouse, "ArchiveLoc", _archiveLocation.ToString());
-            CreateNewChildXmlNode(warehouseData, warehouse, "DistroListTarget", _distroList.ToString());
-            CreateNewChildXmlNode(warehouseData, warehouse, "LaborPlanRows", string.Join(",",_laborPlanInforRows));
-            CreateNewChildXmlNode(warehouseData, warehouse, "TPHDistro", string.Join(",", _tphdistrobution));
-            CreateNewChildXmlNode(warehouseData, warehouse, "DaysRates", string.Join(",", _daysStaffingRates));
-            CreateNewChildXmlNode(warehouseData, warehouse, "NightsRates", string.Join(",", _nightsStaffingRates));
+        //    AddXmlAttributeToNode(warehouseData, warehouse, "ID", 1);
 
-            return warehouseData.InnerXml; // The XML document, as a string, so we can save the data to disk
-        }
+        //    // Create the child nodes for the "warehouse" node
+        //    CreateNewChildXmlNode(warehouseData, warehouse, "Location", _location.ToString());
+        //    CreateNewChildXmlNode(warehouseData, warehouse, "BlankLoc", _blankCopyLoc.ToString());
+        //    CreateNewChildXmlNode(warehouseData, warehouse, "ArchiveLoc", _archiveLocation.ToString());
+        //    CreateNewChildXmlNode(warehouseData, warehouse, "DistroListTarget", _distroList.ToString());
+        //    CreateNewChildXmlNode(warehouseData, warehouse, "LaborPlanRows", string.Join(",",_laborPlanInforRows));
+        //    CreateNewChildXmlNode(warehouseData, warehouse, "TPHDistro", string.Join(",", _tphdistrobution));
+        //    CreateNewChildXmlNode(warehouseData, warehouse, "DaysRates", string.Join(",", _daysStaffingRates));
+        //    CreateNewChildXmlNode(warehouseData, warehouse, "NightsRates", string.Join(",", _nightsStaffingRates));
 
-        private void CreateNewChildXmlNode(XmlDocument document, XmlNode parentNode, string elementName, object value)
-        {
-            XmlNode node = document.CreateElement(elementName);
-            node.AppendChild(document.CreateTextNode(value.ToString()));
-            parentNode.AppendChild(node);
-        }
+        //    return warehouseData.InnerXml; // The XML document, as a string, so we can save the data to disk
+        //}
 
-        private void AddXmlAttributeToNode(XmlDocument document, XmlNode node, string attributeName, object value)
-        {
-            XmlAttribute attribute = document.CreateAttribute(attributeName);
-            attribute.Value = value.ToString();
-            node.Attributes.Append(attribute);
-        }
+        //private void CreateNewChildXmlNode(XmlDocument document, XmlNode parentNode, string elementName, object value)
+        //{
+        //    XmlNode node = document.CreateElement(elementName);
+        //    node.AppendChild(document.CreateTextNode(value.ToString()));
+        //    parentNode.AppendChild(node);
+        //}
+
+        //private void AddXmlAttributeToNode(XmlDocument document, XmlNode node, string attributeName, object value)
+        //{
+        //    XmlAttribute attribute = document.CreateAttribute(attributeName);
+        //    attribute.Value = value.ToString();
+        //    node.Attributes.Append(attribute);
+        //}
     }
 }

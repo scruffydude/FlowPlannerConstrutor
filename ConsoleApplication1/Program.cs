@@ -9,7 +9,7 @@ using Marshal = System.Runtime.InteropServices;
 using System.Security.Principal;
 using NLog;
 using System.Xml;
-using System.Data;
+using System.Data.SqlClient;
 
 namespace FlowPlanConstruction
 {
@@ -19,6 +19,7 @@ namespace FlowPlanConstruction
 
         //section toggles
         private const bool debugMode = true;
+        private const bool testing = true;
         public const bool runArchive = true;
         public const bool runLaborPlan = true;
         public const bool runCustom = true;
@@ -54,7 +55,12 @@ namespace FlowPlanConstruction
                + "Initial Catalog=AAD;"
                + "Persist Security Info=True;"
                + "Trusted_connection=true";
-        public static string chargeQuery = "Use AAD go with item_order_quantity as (SELECT o.order_number,o.wh_id,COUNT(DISTINCT d.item_number) item_count,sum(d.qty) unit_qty FROM AAD.dbo.t_order o left join AAD.dbo.t_order_detail d on o.order_number = d.order_number and o.wh_id = d.wh_id where o.arrive_date > cast(getdate() - 60 as date) group by o.order_number,o.wh_id) select o.wh_id, cast(o.arrive_date as date) arrive_date, datepart(hour,o.arrive_date) arrive_hour, case when q.item_count = 1 then 'SINGLES' else 'MULTIS' end order_type, o.che_route, count(distinct o.order_number) order_ct, sum(q.unit_qty) unit_qty from AAD.dbo.t_order o left join item_order_quantity q on q.order_number = o.order_number and q.wh_id = o.wh_id where o.type_id = '31' and o.arrive_date > Cast(getdate() - 60 as date) group by cast(o.arrive_date as date), o.wh_id, datepart(hour,o.arrive_date), o.che_route, case when q.item_count = 1 then 'SINGLES' else 'MULTIS' end order by  cast(o.arrive_date as date), o.wh_id, datepart(hour,o.arrive_date), o.che_route, case when q.item_count = 1 then 'SINGLES' else 'MULTIS' end";
+        //public static string NewchargeQuery = "Use AAD go with item_order_quantity as (SELECT o.order_number,o.wh_id,COUNT(DISTINCT d.item_number) item_count,sum(d.qty) unit_qty FROM AAD.dbo.t_order o left join AAD.dbo.t_order_detail d on o.order_number = d.order_number and o.wh_id = d.wh_id where o.arrive_date > cast(getdate() - 60 as date) group by o.order_number,o.wh_id); select o.wh_id, cast(o.arrive_date as date) arrive_date, datepart(hour,o.arrive_date) arrive_hour, case when q.item_count = 1 then 'SINGLES' else 'MULTIS' end order_type, o.che_route, count(distinct o.order_number) order_ct, sum(q.unit_qty) unit_qty from AAD.dbo.t_order o left join item_order_quantity q on q.order_number = o.order_number and q.wh_id = o.wh_id where o.type_id = '31' and o.arrive_date > Cast(getdate() - 60 as date) group by cast(o.arrive_date as date), o.wh_id, datepart(hour,o.arrive_date), o.che_route, case when q.item_count = 1 then 'SINGLES' else 'MULTIS' end order by  cast(o.arrive_date as date), o.wh_id, datepart(hour,o.arrive_date), o.che_route, case when q.item_count = 1 then 'SINGLES' else 'MULTIS' end";
+        public static string chargeQuery = "Use AAD SELECT ord_date, ord_hour, che_route, pick_type, SUM(qty)AS unit_qty, wh_id " +
+                "FROM (SELECT CAST(tor.arrive_date AS DATE) AS ord_date, DATEPART(HOUR, tor.arrive_date) AS ord_hour, tor.che_route, tor.wh_id," +
+                "(CASE WHEN(SELECT COUNT(DISTINCT sdl.item_number) FROM t_order_detail sdl WITH (NOLOCK) WHERE sdl.order_id = tor.order_id) > 1 THEN 'MULTIS' ELSE 'SINGLES' END) AS pick_type, tdl.qty " +
+                "FROM t_order tor INNER JOIN t_order_detail tdl WITH (NOLOCK) ON tor.order_id = tdl.order_id WHERE tor.type_id = '31' " +
+                "AND CAST(tor.arrive_date AS DATE) BETWEEN GETDATE() - 21 AND GETDATE() - 1) result GROUP BY ord_date, ord_hour, che_route, pick_type, wh_id ORDER BY ord_date, ord_hour,che_route, pick_type";
 
         static void Main(string[] args)
         {
@@ -68,13 +74,14 @@ namespace FlowPlanConstruction
             double[] laborplaninfo = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
 
             List<Warehouse> warehouseList = new List<Warehouse>();
-
+            GatherSQLData();
             warehouseList = getWHList();
             try
             {
+                
                 foreach (Warehouse wh in warehouseList)
                 {
-                    if (!debugMode )//&& wh.Name =="CFC1")
+                    if (!debugMode  && wh.Name =="CFC1")
                     {
                         log.Info("Debug mode disabled checking process flags.");
                         if (runLaborPlan)
@@ -100,12 +107,23 @@ namespace FlowPlanConstruction
                             }
                         }
                     }
+                    else if(testing)
+                    {
+                        try
+                        {
+                            
+                        }
+                        catch (Exception e)
+                        {
+                            log.Fatal(e);
+                        }
+                    }
                 }
         }
             catch (Exception e)
             {
                 CrashshutDownApplication(e);
-             }
+            }
 
 
             GracefulExit(warehouseList);
@@ -669,8 +687,10 @@ namespace FlowPlanConstruction
             XmlNode warehouseRoot = warehousesXML.CreateElement("Warehouses");
             warehousesXML.AppendChild(warehouseRoot);
 
+            
             foreach(Warehouse wh in warehousesList)
             {
+                
                 XmlNode warehouse = warehousesXML.CreateElement(wh.Name);
                 warehouseRoot.AppendChild(warehouse);
                 CreateNewChildXmlNode(warehousesXML, warehouse, "Name", wh.Name.ToString());
@@ -776,7 +796,8 @@ namespace FlowPlanConstruction
                                 break;
                         }
                     }
-
+                    temp.daysChargePattern = rates;
+                    temp.nightsChargePattern = rates;
                     whList.Add(temp);
                     log.Info("{0} Warehouse added to list of warehouses", temp.Name);
                 }
@@ -1087,41 +1108,40 @@ namespace FlowPlanConstruction
         }
 
         public static void GatherSQLData()
-        {
+         {
 
             using (SqlConnection connection =
                    new SqlConnection(prodConnectionString))
             {
                 SqlCommand command =
                     new SqlCommand(chargeQuery, connection);
+                command.CommandTimeout = 600;
                 connection.Open();
 
                 SqlDataReader reader = command.ExecuteReader();
 
-                Console.WriteLine("{0}, {1}, {2}, {3}, {4}", reader.GetName(0), reader.GetName(1), reader.GetName(2), reader.GetName(3), reader.GetName(4));
-                for (int x = 0; x < 5; x++)
+                int col = reader.FieldCount;
+                int rec = reader.RecordsAffected;
+                log.Info("Returned Number of col is {0}", col);
+                log.Info("Returned Number of rec is {0}", rec);
+                for (int i = 1; i <col; i++)
                 {
-                    
+                    log.Info("Colum name {0}", reader.GetName(i));
                 }
                 int y = 2;
                 // Call Read before accessing data.
                 while (reader.Read())
                 {
+                
                    
                 }
 
                 // Call Close when done reading.
                 reader.Close();
+                connection.Close();
             }
         }
-}
-
-       
-
-
-
     
+    }
 
-
-
-
+}
