@@ -10,6 +10,7 @@ using System.Security.Principal;
 using NLog;
 using System.Xml;
 using System.Data.SqlClient;
+using System.Data;
 
 namespace FlowPlanConstruction
 {
@@ -18,13 +19,13 @@ namespace FlowPlanConstruction
         private static Logger log = LogManager.GetCurrentClassLogger();
 
         //section toggles
-        private const bool debugMode = true;
+        private const bool debugMode = false;
         private const bool testing = true;
         public const bool runArchive = true;
         public const bool runLaborPlan = true;
         public const bool runCustom = true;
 
-        //application flags
+        //excel application flags
         public const bool visibilityFlag = false;
         public const bool alertsFlag = false;
 
@@ -74,14 +75,14 @@ namespace FlowPlanConstruction
             double[] laborplaninfo = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
 
             List<Warehouse> warehouseList = new List<Warehouse>();
-            GatherSQLData();
+            //GatherSQLData();
             warehouseList = getWHList();
-            try
-            {
+            //try
+            //{
                 
                 foreach (Warehouse wh in warehouseList)
                 {
-                    if (!debugMode  && wh.Name =="CFC1")
+                    if (!debugMode )// && wh.Name =="CFC1")
                     {
                         log.Info("Debug mode disabled checking process flags.");
                         if (runLaborPlan)
@@ -119,20 +120,23 @@ namespace FlowPlanConstruction
                         }
                     }
                 }
-        }
-            catch (Exception e)
-            {
-                CrashshutDownApplication(e);
-            }
+            //}
+            //catch (Exception e)
+            //{
+            //    log.Fatal("Crash shutdown Initiated");
+             //   log.Fatal(e, "Causation of Abort:");
+                //CrashshutDownApplication(e);
+            //}
 
 
             GracefulExit(warehouseList);
-            
+            LogManager.Flush();
+
         }
         private static void CleanUpDirectories(string locToArchive, string archiveLocation, double[] DayRates, double[] NightsRates)
         {
-            string Lvl1rollup = @"\\CFC1AFS01\Operations-Analytics\Projects\Flow Plan\RollUpInfo\LVL1rollup.xlsx";
-
+            string Lvl1rollup = @"\\CFC1AFS01\Operations-Analytics\Projects\Flow Plan\RollUpInfo\LVL1rollup";
+            bool runRollup = true;
             //Define Excel Application
             Excel.Application archiveApp = null;
             archiveApp = new Excel.Application();
@@ -148,10 +152,11 @@ namespace FlowPlanConstruction
 
             try
             {
-                collectionSummary = archiveworkbooks.Open(Lvl1rollup, false, false);
+                collectionSummary = archiveworkbooks.Open(Lvl1rollup+".xlsx", false, false);
             }catch
             {
                 log.Warn("Unable to open " + Lvl1rollup);
+                runRollup = false;
 
             }
 
@@ -182,7 +187,14 @@ namespace FlowPlanConstruction
                     continue;
                 }
 
-                var emptycheck = currentProcessableFile.Worksheets.Item["SOS"].cells[9, 5].value;
+                var emptycheck = "";
+                emptycheck = null;
+
+                if (copy.Contains(".xlsx"))
+                {
+                    emptycheck = currentProcessableFile.Worksheets.Item["SOS"].cells[9, 5].value;
+                }
+                
 
                 if(emptycheck == null)
                 {
@@ -212,6 +224,7 @@ namespace FlowPlanConstruction
                     try
                     {
                         gatherCustomInfo(currentProcessableFile, DayRates, NightsRates);
+                        if(runRollup)
                         gatherRollUpInfo(collectionSummary, currentProcessableFile);
                         currentProcessableFile.Close(false);
                         log.Info("File Coppied from: " + copy + " to Archive");
@@ -227,8 +240,33 @@ namespace FlowPlanConstruction
             }
 
             //clean up excel
-            collectionSummary.SaveAs(Lvl1rollup);
-            collectionSummary.Close();
+            if(runRollup)
+            {
+                try
+                {
+                    Lvl1rollup += ".xlsx";
+                    collectionSummary.SaveAs(Lvl1rollup);
+                    collectionSummary.Close();
+                }
+                catch
+                {
+                    try
+                    {
+                        Lvl1rollup += ".new.xlsx";
+                        collectionSummary.SaveAs(Lvl1rollup);
+                        collectionSummary.Close();
+                    } catch(Exception e)
+                    {
+                        log.Warn(e, "Issue saving rollup: ");
+                    }
+                    
+                }
+            }else
+            {
+                log.Fatal("Rollup was skipped, due to an inability to open the rollup file.");
+            }
+            
+
             collectionSummary = null;
             archiveworkbooks = null;
             archiveApp.Quit();
@@ -670,7 +708,6 @@ namespace FlowPlanConstruction
                 log.Fatal(e);
             }
             
-            LogManager.Flush();
         }
         public static void CrashshutDownApplication(Exception e)
         {
@@ -1106,41 +1143,48 @@ namespace FlowPlanConstruction
         {
             return Math.Round(shipGoal / defaultMultiRate);
         }
+        
+        //private DataTable dataTable = new DataTable();
 
-        public static void GatherSQLData()
-         {
+        //public static void GatherSQLData()
+         //{
 
-            using (SqlConnection connection =
-                   new SqlConnection(prodConnectionString))
-            {
-                SqlCommand command =
-                    new SqlCommand(chargeQuery, connection);
-                command.CommandTimeout = 600;
-                connection.Open();
+           // using (SqlConnection connection =
+               //    new SqlConnection(prodConnectionString))
+           // {
+              //  SqlCommand command =
+               //     new SqlCommand(chargeQuery, connection);
+             //   command.CommandTimeout = 600;
+               // connection.Open();
 
-                SqlDataReader reader = command.ExecuteReader();
+              //  SqlDataAdapter dataAdapter = new SqlDataAdapter(command);
+              //  dataAdapter.Fill(dataTable);
 
-                int col = reader.FieldCount;
-                int rec = reader.RecordsAffected;
-                log.Info("Returned Number of col is {0}", col);
-                log.Info("Returned Number of rec is {0}", rec);
-                for (int i = 1; i <col; i++)
-                {
-                    log.Info("Colum name {0}", reader.GetName(i));
-                }
-                int y = 2;
+              //  SqlDataReader reader = command.ExecuteReader();
+
+              //  int col = reader.FieldCount;
+              //  int rec = reader.RecordsAffected;
+               // log.Info("Returned Number of col is {0}", col);
+              //  log.Info("Returned Number of rec is {0}", rec);
+              //  for (int i = 1; i <col; i++)
+              //  {
+              //      log.Info("Colum name {0}", reader.GetName(i));
+             //   }
+              //  int y = 2;
                 // Call Read before accessing data.
-                while (reader.Read())
-                {
-                
+              //  while (reader.Read())
+//{
+              //  
                    
-                }
-
+              //  }
+    //
                 // Call Close when done reading.
-                reader.Close();
-                connection.Close();
-            }
-        }
+              //  reader.Close();
+                
+              //  connection.Close();
+              //  dataAdapter.Dispose();
+           // }
+       // }
     
     }
 
