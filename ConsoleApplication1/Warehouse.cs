@@ -11,12 +11,15 @@ namespace FlowPlanConstruction
     {
         private string _name;
         private string _location;
-        private string _blankCopyLoc;
-        private string _archiveLocation;
+        private string _OBblankCopyLoc;
+        private string _OBarchiveLocation;
+        private string _IBblankCopyLoc;
+        private string _IBarchiveLocation;
         private string _distroList;
         private bool _preShiftFlag;
         private bool _laborPlanInfoPop;
         private bool _preShiftInfoPop;
+        private bool _IBFlowPlan;
         
 
         private double _handOffPercentage;
@@ -32,16 +35,16 @@ namespace FlowPlanConstruction
 
 
         public Warehouse(string name, string blankCopyLoc,
-            string archiveLoc, int[] laborPlanInfoRows, double[] daysRates, 
-            double[] nightsRates, double[] tphDistro, string location = "Unknown", 
-            string distrolist = "camos@chewy.com", bool preShiftFlag = true, 
-            bool laborPlanInfoPop = true, bool preShiftInfoPop = true, 
-            double handOffPercentage = .46, int handOffDeadman = 24000)
+            string archiveLoc, int[] laborPlanInfoRows, double[] daysRates,
+            double[] nightsRates, double[] tphDistro, string location = "Unknown",
+            string distrolist = "camos@chewy.com", bool preShiftFlag = true,
+            bool laborPlanInfoPop = true, bool preShiftInfoPop = true,
+            double handOffPercentage = .46, int handOffDeadman = 24000, bool IBFlowPlan = true)
         {
             _name = name;
             _location = location;
-            _blankCopyLoc = blankCopyLoc;
-            _archiveLocation = archiveLoc;
+            _OBblankCopyLoc = blankCopyLoc;
+            _OBarchiveLocation = archiveLoc;
             _distroList = distrolist;
             _laborPlanInforRows = laborPlanInfoRows;
             _tphdistrobution = tphDistro;
@@ -52,6 +55,7 @@ namespace FlowPlanConstruction
             _laborPlanInfoPop = laborPlanInfoPop;
             _handOffPercentage = HandoffPercent;
             _handOffDeadMan = handOffDeadman;
+            _IBFlowPlan = IBFlowPlan;
         }
         public string Name
         {
@@ -63,15 +67,25 @@ namespace FlowPlanConstruction
             get { return _location; }
             set { _location = value; }
         }
-        public string blankCopyLoc
+        public string OBblankCopyLoc
         {
-            get { return _blankCopyLoc; }
-            set { _blankCopyLoc = value; }
+            get { return _OBblankCopyLoc; }
+            set { _OBblankCopyLoc = value; }
         }
-        public string archiveLoc
+        public string OBarchiveLoc
         {
-            get { return _archiveLocation; }
-            set { _archiveLocation = value; }
+            get { return _OBarchiveLocation; }
+            set { _OBarchiveLocation = value; }
+        }
+        public string IBblankCopyLoc
+        {
+            get { return _IBblankCopyLoc; }
+            set { _IBblankCopyLoc = value; }
+        }
+        public string IBarchiveLoc
+        {
+            get { return _IBarchiveLocation; }
+            set { _IBarchiveLocation = value; }
         }
         public string DistroList
         {
@@ -142,42 +156,10 @@ namespace FlowPlanConstruction
         {
 
         }
-
-        //public string ToXmlString()
-        //{
-        //    XmlDocument warehouseData = new XmlDocument();
-
-        //    // Create the "Stats" child node to hold the other player statistics nodes
-        //    XmlNode warehouse = warehouseData.CreateElement(_name);
-        //    warehouseData.AppendChild(warehouse);
-
-        //    AddXmlAttributeToNode(warehouseData, warehouse, "ID", 1);
-
-        //    // Create the child nodes for the "warehouse" node
-        //    CreateNewChildXmlNode(warehouseData, warehouse, "Location", _location.ToString());
-        //    CreateNewChildXmlNode(warehouseData, warehouse, "BlankLoc", _blankCopyLoc.ToString());
-        //    CreateNewChildXmlNode(warehouseData, warehouse, "ArchiveLoc", _archiveLocation.ToString());
-        //    CreateNewChildXmlNode(warehouseData, warehouse, "DistroListTarget", _distroList.ToString());
-        //    CreateNewChildXmlNode(warehouseData, warehouse, "LaborPlanRows", string.Join(",",_laborPlanInforRows));
-        //    CreateNewChildXmlNode(warehouseData, warehouse, "TPHDistro", string.Join(",", _tphdistrobution));
-        //    CreateNewChildXmlNode(warehouseData, warehouse, "DaysRates", string.Join(",", _daysStaffingRates));
-        //    CreateNewChildXmlNode(warehouseData, warehouse, "NightsRates", string.Join(",", _nightsStaffingRates));
-
-        //    return warehouseData.InnerXml; // The XML document, as a string, so we can save the data to disk
-        //}
-
-        //private void CreateNewChildXmlNode(XmlDocument document, XmlNode parentNode, string elementName, object value)
-        //{
-        //    XmlNode node = document.CreateElement(elementName);
-        //    node.AppendChild(document.CreateTextNode(value.ToString()));
-        //    parentNode.AppendChild(node);
-        //}
-
-        //private void AddXmlAttributeToNode(XmlDocument document, XmlNode node, string attributeName, object value)
-        //{
-        //    XmlAttribute attribute = document.CreateAttribute(attributeName);
-        //    attribute.Value = value.ToString();
-        //    node.Attributes.Append(attribute);
-        //}
+        public bool IBFlowPlan
+        {
+            get { return _IBFlowPlan; }
+            set { _IBFlowPlan = value; }
+        }
     }
 }

@@ -11,6 +11,7 @@ using NLog;
 using System.Xml;
 using System.Data.SqlClient;
 using System.Data;
+using System.Reflection;
 
 namespace FlowPlanConstruction
 {
@@ -20,7 +21,7 @@ namespace FlowPlanConstruction
 
         //section toggles
         private const bool debugMode = false;
-        private const bool testing = true;
+        private const bool testing = false;
         public const bool runArchive = true;
         public const bool runLaborPlan = true;
         public const bool runCustom = true;
@@ -31,10 +32,12 @@ namespace FlowPlanConstruction
 
         //path information
         public const string chargeDataSrcPath = @"\\cfc1afs01\Operations-Analytics\RAW Data\chargepattern.csv";
-        public const string masterFlowPlanLocation = @"\\CFC1AFS01\Operations-Analytics\Projects\Flow Plan\Outbound Flow Plan v2.0(MCRC).xlsm";
+        public const string masterOBFlowPlanLocation = @"\\CFC1AFS01\Operations-Analytics\Projects\Flow Plan\Outbound Flow Plan v2.0(MCRC).xlsm";
         public const string laborPlanLocationation = @"\\chewy.local\bi\BI Community Content\Finance\Labor Models\";
+        public const string laborPlanSecondaryLoc = @"\\cfc1001507d\Labor-Models\SharePoint\21 Day Plan - Documents";
         public const string whXmlList = @"\\cfc1afs01\Operations-Analytics\Projects\Flow Plan\Release\Warehouses.xml";
         public const string masterPreShiftCheckList = @"\\cfc1afs01\Operations-Analytics\Projects\Documentation\Standard Work\";
+        public const string masterIBFlowPlanLocation = @"\\cfc1afs01\Operations-Analytics\Projects\Flow Plan\Master Flow Plans\Inbound_Master\Inbound Flow Plan (MCRC).xlsm";
 
         //shiift defenition
         public static string[] shifts = { "Days", "Nights", "Blank" };
@@ -75,14 +78,17 @@ namespace FlowPlanConstruction
             double[] laborplaninfo = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
 
             List<Warehouse> warehouseList = new List<Warehouse>();
-            //GatherSQLData();
+
             warehouseList = getWHList();
-            //try
-            //{
                 
                 foreach (Warehouse wh in warehouseList)
                 {
-                    if (!debugMode )// && wh.Name =="CFC1")
+                CheckDirExist(wh.OBblankCopyLoc);
+                CheckDirExist(wh.OBarchiveLoc);
+                CheckDirExist(wh.IBarchiveLoc);
+                CheckDirExist(wh.IBblankCopyLoc);
+
+                    if (!debugMode  && wh.Name =="MCO1")
                     {
                         log.Info("Debug mode disabled checking process flags.");
                         if (runLaborPlan)
@@ -94,7 +100,8 @@ namespace FlowPlanConstruction
                         if (runArchive)
                         {
                             log.Info("Archive process Initalized for {0}", wh.Name);
-                            CleanUpDirectories(wh.blankCopyLoc, wh.archiveLoc, wh.daysRate, wh.nightsRate);
+                            CleanUpDirectories(wh.OBblankCopyLoc, wh.OBarchiveLoc, wh.daysRate, wh.nightsRate);
+                            ArchiveFlowPlansCopyMasterToBlank(wh.IBblankCopyLoc, wh.IBarchiveLoc);
                         }
 
                         if (runCustom)
@@ -102,9 +109,9 @@ namespace FlowPlanConstruction
                             log.Info("Flow Plan Customization process Initalized for {0}", wh.Name);
                             foreach (string shift in shifts)
                             {
-                                customizeFlowPlan(wh.blankCopyLoc, wh.Name, shift, runLaborPlanPopulate, laborplaninfo, wh.DistroList, wh.HandoffPercent, wh.VCPUWageRate, wh.DeadMan, wh.daysRate, wh.nightsRate, wh.tphDistro, wh.laborInfoPop);
+                                customizeFlowPlan(wh.OBblankCopyLoc, wh.Name, shift, runLaborPlanPopulate, laborplaninfo, wh.DistroList, wh.HandoffPercent, wh.VCPUWageRate, wh.DeadMan, wh.daysRate, wh.nightsRate, wh.tphDistro, wh.laborInfoPop);
                                 if (wh.PreShiftFlag)
-                                    CustomizePreShift(laborplaninfo, shift, wh.blankCopyLoc, wh.Name, wh.preshiftInfoPop);
+                                    CustomizePreShift(laborplaninfo, shift, wh.OBblankCopyLoc, wh.Name, wh.preshiftInfoPop);
                             }
                         }
                     }
@@ -112,7 +119,12 @@ namespace FlowPlanConstruction
                     {
                         try
                         {
-                            
+
+                        PropertyInfo[] properties = typeof(Warehouse).GetProperties();
+                        foreach(PropertyInfo property in properties)
+                        {
+                            Console.WriteLine(property.Name);
+                        }
                         }
                         catch (Exception e)
                         {
@@ -120,19 +132,59 @@ namespace FlowPlanConstruction
                         }
                     }
                 }
-            //}
-            //catch (Exception e)
-            //{
-            //    log.Fatal("Crash shutdown Initiated");
-             //   log.Fatal(e, "Causation of Abort:");
-                //CrashshutDownApplication(e);
-            //}
-
 
             GracefulExit(warehouseList);
             LogManager.Flush();
 
         }
+        private static void CheckDirExist(string locToCheck)
+        {
+            if(!Directory.Exists(locToCheck))
+            {
+                log.Warn("Directory does not exist at {0}", locToCheck);
+                log.Info("Creating new Directory at {0}", locToCheck);
+                Directory.CreateDirectory(locToCheck);
+            }else
+            {
+                log.Info("Directory location confirmed at {0}", locToCheck);
+            }
+        }
+        private static void CheckFileExists(string file)
+        {
+            if (File.Exists(file))
+            {
+                log.Info("File found at: {0} attempting to remove.");
+                try
+                {
+                    File.Delete(file);
+                    log.Info("File removed sucessfully");
+                }
+                catch (Exception e)
+                {
+                    log.Fatal(e, "Casused exception in File Exist Check");
+                }
+
+            }
+        }
+        private static void ArchiveFlowPlansCopyMasterToBlank(string blankLocation, string archiveLocation)
+        {
+            string[] files = Directory.GetFiles(blankLocation);
+            
+            foreach(string file in files)
+            {
+                string filename = Path.GetFileName(file);
+                string lastmodified = File.GetLastWriteTime(file).ToString("yyyy-MM-dd").Replace('-', '\\')+"\\";
+                string destFile = archiveLocation + lastmodified + filename;
+
+                CheckDirExist(archiveLocation + lastmodified);
+                CheckFileExists(destFile);
+
+                File.Copy(file, destFile);
+                File.Delete(file);
+            }
+            File.Copy(masterIBFlowPlanLocation, blankLocation + "Inbound Flow Plan "+ System.DateTime.Now.Date.ToString("yyyy-MM-dd") + ".xlsm");
+        }
+
         private static void CleanUpDirectories(string locToArchive, string archiveLocation, double[] DayRates, double[] NightsRates)
         {
             string Lvl1rollup = @"\\CFC1AFS01\Operations-Analytics\Projects\Flow Plan\RollUpInfo\LVL1rollup";
@@ -148,6 +200,9 @@ namespace FlowPlanConstruction
             archiveworkbooks = archiveApp.Workbooks;
             Excel.Workbook collectionSummary = null;
             Excel.Workbook currentProcessableFile = null;
+
+            CheckDirExist(locToArchive);
+            CheckDirExist(archiveLocation);
 
 
             try
@@ -167,6 +222,7 @@ namespace FlowPlanConstruction
             string archivePathloca = "";
 
             string[] blankcopies = Directory.GetFiles(locToArchive);
+
             foreach (string copy in blankcopies)
             {
                 modifiedDate = System.IO.File.GetLastWriteTime(copy);
@@ -187,16 +243,16 @@ namespace FlowPlanConstruction
                     continue;
                 }
 
-                var emptycheck = "";
-                emptycheck = null;
+                var emptycheck = 0.0;
 
-                if (copy.Contains(".xlsx"))
+                if (copy.Contains(".xlsm"))
                 {
+                    if(currentProcessableFile.Worksheets.Item["SOS"].cells[9, 5].value!=null)
                     emptycheck = currentProcessableFile.Worksheets.Item["SOS"].cells[9, 5].value;
                 }
                 
 
-                if(emptycheck == null)
+                if(emptycheck == 0.0)
                 {
                     log.Info("File empty removing");
                     currentProcessableFile.Close(false);
@@ -292,6 +348,7 @@ namespace FlowPlanConstruction
                 rates.CopyTo(nightsRate, 0);
             }
             HourlyST = null;
+            CurrentFile = null;
 
 
         }
@@ -382,12 +439,12 @@ namespace FlowPlanConstruction
 
             Excel.Workbooks Workbooks = null;
             Workbooks = LaborPlanApp.Workbooks;
-
+            CheckDirExist(laborPlanLocationation);
             string[] laborplans = Directory.GetFiles(laborPlanLocationation);
             string laborplanfileName = "";
             Excel.Workbook laborPlanModel = null;
             int col = 0;
-            col = System.DateTime.Today.DayOfYear;
+            col = System.DateTime.Today.DayOfYear+365;
             int i = 0;
             
             string[] rowlabels = { "Planned Total Show Hours (Days)", "Planned Throughput (Days)", "Planned Units Shipped (Days)", "Planned Supply Chain Units Ordered (Days)", "Planned Total Show Hours (Nights)", "Planned Throughput (Nights)", "Planned Units Shipped (Nights)", "Planned Supply Chain Units Ordered (Nights)", "Planned Total Show Hours (Days)", "Planned Throughput (Days)", "Planned Units Shipped (Days)", "Planned Supply Chain Units Ordered (Days)" };
@@ -416,7 +473,8 @@ namespace FlowPlanConstruction
                     //determine which rows to go look for
                     foreach (string label in rowlabels)
                     {
-                        
+                        //checklocationofvalue(dprows[r], 2, OBDP, label, true);
+                        //checklocationofvalue(dprows[r], col+2, OBDP, System.DateTime.Now.Date.ToString(), false);
                         if (r > 11)
                         {
                             log.Warn("Current Row Check Greater than number of verifications needed.. Shutting down Labor Plan Search");
@@ -483,9 +541,61 @@ namespace FlowPlanConstruction
             return dprows; // we want to add the data to the flow planners
         }
 
+        //private static int checklocationofvalue(int expectedRow, int expectedColmn, Excel.Worksheet searchableSheet, string expectedValue, bool returnRow)
+        //{
+        //    int newLocation = 0;
+
+        //    if(returnRow)
+        //    {
+
+        //        if(searchableSheet.Cells[expectedRow, expectedColmn].value == expectedValue)
+        //        {
+        //            newLocation = expectedRow;
+        //        }
+        //        else
+        //        {
+        //            for (int i = 1; i <= searchableSheet.UsedRange.Rows.Count; i++)
+        //            {
+        //                if (searchableSheet.Cells[i, expectedColmn].value == expectedValue)
+        //                {
+        //                    newLocation = i;
+        //                    i = searchableSheet.UsedRange.Rows.Count;
+        //                }
+        //            }
+        //        }
+
+        //    }else
+        //    {
+        //        var test = searchableSheet.Cells[expectedRow, expectedColmn].value;
+        //        if (test.toString() == expectedValue)
+        //        {
+        //            newLocation = expectedColmn;
+        //        }
+        //        else
+        //        {
+        //            for (int i = 0; i <= searchableSheet.UsedRange.Columns.Count; i++)
+        //            {
+        //                if (searchableSheet.Cells[expectedRow, i].value == expectedValue)
+        //                {
+        //                    newLocation =i;
+        //                    i = searchableSheet.UsedRange.Columns.Count;
+        //                }
+        //            }
+        //        }
+
+        //    }
+
+        //    searchableSheet = null;
+        //    return newLocation;
+
+        //}
+
         private static void customizeFlowPlan(string newFileDirectory, string warehouse, string shift,bool laborPlanInfoAvaliable, double[] laborPlanInformation, string distrobutionList, double backlogHandoffPercent, double VCPUWageRate, int DeadMan, double[] daysRates, double[] nightsRate, double[] tphGoals, bool laborPlanPop)// this may need restructuring to make it more readable keep and eye on for future improvements
         {
             log.Info("Begining {0} {1} file customization process", warehouse, shift);
+
+            CheckDirExist(newFileDirectory);
+
             //define Excel Application for the Creation Process
             Excel.Application CustomiseFlowPlanApplication = null;
             CustomiseFlowPlanApplication = new Excel.Application();
@@ -509,7 +619,7 @@ namespace FlowPlanConstruction
             customizeFlowPlanWorkBookCollection = CustomiseFlowPlanApplication.Workbooks;
             chargeDataSourceWB = customizeFlowPlanWorkBookCollection.Open(chargeDataSrcPath, false, true);
             chargeDataSourceWKST = chargeDataSourceWB.Worksheets.Item[1];
-            customFlowPlanDestinationWB = customizeFlowPlanWorkBookCollection.Open(masterFlowPlanLocation, false, false);
+            customFlowPlanDestinationWB = customizeFlowPlanWorkBookCollection.Open(masterOBFlowPlanLocation, false, false);
             customFlowPlanDestinationCHRGDATAWKST = customFlowPlanDestinationWB.Worksheets.Item["Charge Data"];
             customFPDestinationSOSWKST = customFlowPlanDestinationWB.Worksheets.Item["SOS"];
             customFlowPlanDestinationHOURLYTPHWKST = customFlowPlanDestinationWB.Worksheets.Item["Hourly TPH"];
@@ -517,7 +627,7 @@ namespace FlowPlanConstruction
             customFlowPlanDestinationMasterDataWKST = customFlowPlanDestinationWB.Worksheets.Item["Master Data"];
 
             log.Info("Charge Data Source: {0}", chargeDataSrcPath);
-            log.Info("Master Flow Plan Source: {0}", masterFlowPlanLocation);
+            log.Info("Master Flow Plan Source: {0}", masterOBFlowPlanLocation);
 
             //set application calculation method
             CustomiseFlowPlanApplication.Calculation = Excel.XlCalculation.xlCalculationManual;
@@ -732,8 +842,10 @@ namespace FlowPlanConstruction
                 warehouseRoot.AppendChild(warehouse);
                 CreateNewChildXmlNode(warehousesXML, warehouse, "Name", wh.Name.ToString());
                 CreateNewChildXmlNode(warehousesXML, warehouse, "Location", wh.Location.ToString());
-                CreateNewChildXmlNode(warehousesXML, warehouse, "BlankLoc", wh.blankCopyLoc.ToString());
-                CreateNewChildXmlNode(warehousesXML, warehouse, "ArchiveLoc", wh.archiveLoc.ToString());
+                CreateNewChildXmlNode(warehousesXML, warehouse, "OBBlankLoc", wh.OBblankCopyLoc.ToString());
+                CreateNewChildXmlNode(warehousesXML, warehouse, "OBArchiveLoc", wh.OBarchiveLoc.ToString());
+                CreateNewChildXmlNode(warehousesXML, warehouse, "IBBlankLoc", wh.IBblankCopyLoc.ToString());
+                CreateNewChildXmlNode(warehousesXML, warehouse, "IBArchiveLoc", wh.IBarchiveLoc.ToString());
                 CreateNewChildXmlNode(warehousesXML, warehouse, "DistroListTarget", wh.DistroList.ToString());
                 CreateNewChildXmlNode(warehousesXML, warehouse, "HandoffPercent", wh.HandoffPercent.ToString());
                 CreateNewChildXmlNode(warehousesXML, warehouse, "VCPUWageRate", wh.VCPUWageRate.ToString());
@@ -747,6 +859,7 @@ namespace FlowPlanConstruction
                 CreateNewChildXmlNode(warehousesXML, warehouse, "PreshiftInforPop", wh.preshiftInfoPop.ToString());
                 CreateNewChildXmlNode(warehousesXML, warehouse, "DaysChargePattern", string.Join(",", wh.daysChargePattern));
                 CreateNewChildXmlNode(warehousesXML, warehouse, "NightsChargePattern", string.Join(",", wh.nightsChargePattern));
+                CreateNewChildXmlNode(warehousesXML, warehouse, "IBFlowPlanPOP", wh.IBFlowPlan.ToString());
             }
 
             return warehousesXML.InnerXml;
@@ -773,6 +886,9 @@ namespace FlowPlanConstruction
                 foreach (XmlNode warehouse in warehouseOpen.DocumentElement.ChildNodes)
                 {
                     temp = new Warehouse("", "", "", dprows, rates, rates, defaultTPHHourlyGoalDays);
+
+
+
                     foreach (XmlNode warehouseinfo in warehouse.ChildNodes)
                     {
                         switch (warehouseinfo.Name)
@@ -783,11 +899,17 @@ namespace FlowPlanConstruction
                             case "Location":
                                 temp.Location = warehouseinfo.InnerText;
                                 break;
-                            case "BlankLoc":
-                                temp.blankCopyLoc = warehouseinfo.InnerText;
+                            case "OBBlankLoc":
+                                temp.OBblankCopyLoc = warehouseinfo.InnerText;
                                 break;
-                            case "ArchiveLoc":
-                                temp.archiveLoc = warehouseinfo.InnerText;
+                            case "IBBlankLoc":
+                                temp.IBblankCopyLoc = warehouseinfo.InnerText;
+                                break;
+                            case "OBArchiveLoc":
+                                temp.OBarchiveLoc = warehouseinfo.InnerText;
+                                break;
+                            case "IBArchiveLoc":
+                                temp.IBarchiveLoc = warehouseinfo.InnerText;
                                 break;
                             case "DistroListTarget":
                                 temp.DistroList = warehouseinfo.InnerText;
@@ -827,6 +949,9 @@ namespace FlowPlanConstruction
                                 break;
                             case "NightsChargePattern":
                                 temp.nightsChargePattern = Array.ConvertAll(warehouseinfo.InnerText.Split(','), double.Parse);
+                                break;
+                            case "IBFlowPlanPOP":
+                                temp.IBFlowPlan = bool.Parse(warehouseinfo.InnerText);
                                 break;
                             default:
                                 log.Warn("XML Node not found: {0}", warehouseinfo.Name);
@@ -1068,21 +1193,47 @@ namespace FlowPlanConstruction
                     log.Fatal("Unable to save {0} Lead Preshift skipping....", shift);
                 }
              }
-           
 
-            customizePreShiftWorkBookCollection = null;
-            customSupPreShiftDestinationWB = null;
-            customLeadPreShiftDestinationWB = null;
-            SupINDWKST = null;
-            SupPACKWKST = null;
-            SupPICKWKST = null;
-            SupDockWKST = null;
-            LeadINDWKST = null;
-            LeadPACKWKST = null;
-            LeadPICKWKST = null;
-            LeadDockWKST = null;
+            customLeadPreShiftDestinationWB.Close();
+            customSupPreShiftDestinationWB.Close();
             CustomisePreShiftApplication.Quit();
-            CustomisePreShiftApplication = null;
+            //customizePreShiftWorkBookCollection = null;
+            //customSupPreShiftDestinationWB = null;
+            //customLeadPreShiftDestinationWB = null;
+            //SupINDWKST = null;
+            //SupPACKWKST = null;
+            //SupPICKWKST = null;
+            //SupDockWKST = null;
+            //LeadINDWKST = null;
+            //LeadPACKWKST = null;
+            //LeadPICKWKST = null;
+            //LeadDockWKST = null;
+            //CustomisePreShiftApplication = null;
+            //clear com object references
+            if (customizePreShiftWorkBookCollection != null)
+            { Marshal.Marshal.ReleaseComObject(customizePreShiftWorkBookCollection); }
+            if (customSupPreShiftDestinationWB != null)
+            { Marshal.Marshal.ReleaseComObject(customSupPreShiftDestinationWB); }
+            if (customLeadPreShiftDestinationWB != null)
+            { Marshal.Marshal.ReleaseComObject(customLeadPreShiftDestinationWB); }
+            if (SupINDWKST != null)
+            { Marshal.Marshal.ReleaseComObject(SupINDWKST); }
+            if (SupPACKWKST != null)
+            { Marshal.Marshal.ReleaseComObject(SupPACKWKST); }
+            if (SupPICKWKST != null)
+            { Marshal.Marshal.ReleaseComObject(SupPICKWKST); }
+            if (SupDockWKST != null)
+            { Marshal.Marshal.ReleaseComObject(SupDockWKST); }
+            if (LeadINDWKST != null)
+            { Marshal.Marshal.ReleaseComObject(LeadINDWKST); }
+            if (LeadPACKWKST != null)
+            { Marshal.Marshal.ReleaseComObject(LeadPACKWKST); }
+            if (LeadPICKWKST != null)
+            { Marshal.Marshal.ReleaseComObject(LeadPICKWKST); }
+            if (LeadDockWKST != null)
+            { Marshal.Marshal.ReleaseComObject(LeadDockWKST); }
+            if (CustomisePreShiftApplication != null)
+            { Marshal.Marshal.ReleaseComObject(CustomisePreShiftApplication); }
 
         }
         //public static void gatherRawChargeDate
