@@ -20,18 +20,21 @@ namespace FlowPlanConstruction
         private bool _laborPlanInfoPop;
         private bool _preShiftInfoPop;
         private bool _IBFlowPlan;
-        
+
 
         private double _handOffPercentage;
         private double _VCPUwageRate;
         private int _handOffDeadMan;
+        private double _timeoffset;
 
         private int[] _laborPlanInforRows;
-        private double[] _tphdistrobution;
+        private double[] _daystphdistrobution;
+        private double[] _nightstphdistrobution;
         private double[] _daysStaffingRates;
         private double[] _nightsStaffingRates;
         private double[] _daysChargePattern;
         private double[] _nightsChargePattern;
+        private double[] _mshiftsplit;
 
 
         public Warehouse(string name, string blankCopyLoc,
@@ -39,7 +42,7 @@ namespace FlowPlanConstruction
             double[] nightsRates, double[] tphDistro, string location = "Unknown",
             string distrolist = "camos@chewy.com", bool preShiftFlag = true,
             bool laborPlanInfoPop = true, bool preShiftInfoPop = true,
-            double handOffPercentage = .46, int handOffDeadman = 24000, bool IBFlowPlan = true)
+            double handOffPercentage = .46, int handOffDeadman = 24000, bool IBFlowPlan = true, double Timeoffset = 0)
         {
             _name = name;
             _location = location;
@@ -47,7 +50,7 @@ namespace FlowPlanConstruction
             _OBarchiveLocation = archiveLoc;
             _distroList = distrolist;
             _laborPlanInforRows = laborPlanInfoRows;
-            _tphdistrobution = tphDistro;
+            _daystphdistrobution = tphDistro;
             _daysStaffingRates = daysRates;
             _nightsStaffingRates = nightsRates;
             _preShiftFlag = preShiftFlag;
@@ -97,10 +100,15 @@ namespace FlowPlanConstruction
             get { return _laborPlanInforRows; }
             set { _laborPlanInforRows = value; }
         }
-        public double[] tphDistro
+        public double[] daystphDistro
         {
-            get { return _tphdistrobution; }
-            set { _tphdistrobution = value; }
+            get { return _daystphdistrobution; }
+            set { _daystphdistrobution = value; }
+        }
+        public double[] nightstphDistro
+        {
+            get { return _nightstphdistrobution; }
+            set { _nightstphdistrobution = value; }
         }
         public double[] daysRate
         {
@@ -161,5 +169,16 @@ namespace FlowPlanConstruction
             get { return _IBFlowPlan; }
             set { _IBFlowPlan = value; }
         }
+        public double [] mshiftsplit
+        {
+            get { return _mshiftsplit; }
+            set { _mshiftsplit = value; }
+        }
+        public double timeoffset
+        {
+            get { return _timeoffset; }
+            set { _timeoffset = value; }
+        }
+            
     }
 }

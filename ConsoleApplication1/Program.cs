@@ -74,21 +74,27 @@ namespace FlowPlanConstruction
             log.Info("Application started by {0}", user);
 
             bool runLaborPlanPopulate = false;
-
+            
             double[] laborplaninfo = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
+            List<string> warehouseNames = new List<string>();
 
             List<Warehouse> warehouseList = new List<Warehouse>();
 
             warehouseList = getWHList();
+
+            foreach(Warehouse wh in warehouseList)
+            {
+                warehouseNames.Add(wh.Name);
+            }
                 
                 foreach (Warehouse wh in warehouseList)
                 {
                 CheckDirExist(wh.OBblankCopyLoc);
                 CheckDirExist(wh.OBarchiveLoc);
-                CheckDirExist(wh.IBarchiveLoc);
-                CheckDirExist(wh.IBblankCopyLoc);
+                
+                
 
-                    if (!debugMode  && wh.Name =="MCO1")
+                    if (!debugMode)// && wh.Name =="DFW1")
                     {
                         log.Info("Debug mode disabled checking process flags.");
                         if (runLaborPlan)
@@ -101,6 +107,7 @@ namespace FlowPlanConstruction
                         {
                             log.Info("Archive process Initalized for {0}", wh.Name);
                             CleanUpDirectories(wh.OBblankCopyLoc, wh.OBarchiveLoc, wh.daysRate, wh.nightsRate);
+                            if(wh.IBFlowPlan && CheckDirExist(wh.IBarchiveLoc) && CheckDirExist(wh.IBblankCopyLoc))
                             ArchiveFlowPlansCopyMasterToBlank(wh.IBblankCopyLoc, wh.IBarchiveLoc);
                         }
 
@@ -109,7 +116,9 @@ namespace FlowPlanConstruction
                             log.Info("Flow Plan Customization process Initalized for {0}", wh.Name);
                             foreach (string shift in shifts)
                             {
-                                customizeFlowPlan(wh.OBblankCopyLoc, wh.Name, shift, runLaborPlanPopulate, laborplaninfo, wh.DistroList, wh.HandoffPercent, wh.VCPUWageRate, wh.DeadMan, wh.daysRate, wh.nightsRate, wh.tphDistro, wh.laborInfoPop);
+                                customizeFlowPlan(wh.OBblankCopyLoc, wh.Name, shift, runLaborPlanPopulate, laborplaninfo, wh.DistroList, wh.HandoffPercent,
+                                    wh.VCPUWageRate, wh.DeadMan, wh.daysRate, wh.nightsRate, wh.daystphDistro, wh.laborInfoPop, warehouseNames.ToArray(),
+                                    wh.timeoffset, wh.mshiftsplit,wh.nightstphDistro);
                                 if (wh.PreShiftFlag)
                                     CustomizePreShift(laborplaninfo, shift, wh.OBblankCopyLoc, wh.Name, wh.preshiftInfoPop);
                             }
@@ -137,20 +146,32 @@ namespace FlowPlanConstruction
             LogManager.Flush();
 
         }
-        private static void CheckDirExist(string locToCheck)
+        private static bool CheckDirExist(string locToCheck)
         {
+            bool success = true;
             if(!Directory.Exists(locToCheck))
             {
                 log.Warn("Directory does not exist at {0}", locToCheck);
                 log.Info("Creating new Directory at {0}", locToCheck);
-                Directory.CreateDirectory(locToCheck);
+                try
+                {
+                    Directory.CreateDirectory(locToCheck);
+                }catch
+                {
+                    log.Fatal("Unable to create directory at {0}", locToCheck);
+                    success = false;
+                }
+                
             }else
             {
                 log.Info("Directory location confirmed at {0}", locToCheck);
+                success = true;
             }
+            return success;
         }
-        private static void CheckFileExists(string file)
+        private static bool CheckFileExists(string file)
         {
+            bool success = true;
             if (File.Exists(file))
             {
                 log.Info("File found at: {0} attempting to remove.");
@@ -158,13 +179,16 @@ namespace FlowPlanConstruction
                 {
                     File.Delete(file);
                     log.Info("File removed sucessfully");
+                    success = true;
                 }
                 catch (Exception e)
                 {
                     log.Fatal(e, "Casused exception in File Exist Check");
+                    success = false;
                 }
 
             }
+            return success;
         }
         private static void ArchiveFlowPlansCopyMasterToBlank(string blankLocation, string archiveLocation)
         {
@@ -180,7 +204,14 @@ namespace FlowPlanConstruction
                 CheckFileExists(destFile);
 
                 File.Copy(file, destFile);
-                File.Delete(file);
+                try
+                {
+                    File.Delete(file);
+                }catch
+                {
+                    log.Warn("{0} locked for use.", file);
+                }
+                
             }
             File.Copy(masterIBFlowPlanLocation, blankLocation + "Inbound Flow Plan "+ System.DateTime.Now.Date.ToString("yyyy-MM-dd") + ".xlsm");
         }
@@ -232,68 +263,68 @@ namespace FlowPlanConstruction
                 archivePathloca = System.IO.Path.Combine(archiveLocation, lastmodified);
                 var dir = new DirectoryInfo(archivePathloca);
                 archivePathFile = System.IO.Path.Combine(archivePathloca, filename2);
-
-                try
-                {
-                    currentProcessableFile = archiveworkbooks.Open(copy, false, true);
-                }
-                catch
-                {
-                    log.Warn("Could not open file at: {0} ", copy);
-                    continue;
-                }
-
                 var emptycheck = 0.0;
-
                 if (copy.Contains(".xlsm"))
                 {
-                    if(currentProcessableFile.Worksheets.Item["SOS"].cells[9, 5].value!=null)
-                    emptycheck = currentProcessableFile.Worksheets.Item["SOS"].cells[9, 5].value;
-                }
-                
-
-                if(emptycheck == 0.0)
-                {
-                    log.Info("File empty removing");
-                    currentProcessableFile.Close(false);
                     try
                     {
-                        File.Delete(copy);
-                        log.Info("Empyt File removed");
-                    }catch
-                    {
-                        log.Warn("Unable to remove blank file: {0}", copy);
+                         currentProcessableFile = archiveworkbooks.Open(copy, false, true);
                     }
-                }
-                else
-                {
-                    if (dir.Exists)
+                    catch
                     {
-                        log.Info("Directory confirmend at: " + dir.ToString());
+                        log.Warn("Could not open file at: {0} ", copy);
+                        continue;
+                    }
+                
+                    if(currentProcessableFile.Worksheets.Item["SOS"].cells[9, 5].value!=null)
+                    emptycheck = currentProcessableFile.Worksheets.Item["SOS"].cells[9, 5].value;
+                    if (emptycheck == 0.0)
+                    {
+                        log.Info("File empty removing");
+                        currentProcessableFile.Close(false);
+                        try
+                        {
+                            File.Delete(copy);
+                            log.Info("Empyt File {0} removed", copy);
+                        }
+                        catch
+                        {
+                            log.Warn("Unable to remove blank file: {0}", copy);
+                        }
                     }
                     else
                     {
-                        log.Info("Directory created at: " + dir.ToString());
-                        System.IO.Directory.CreateDirectory(dir.ToString());
+                        if (dir.Exists)
+                        {
+                            log.Info("Directory confirmend at: " + dir.ToString());
+                        }
+                        else
+                        {
+                            log.Info("Directory created at: " + dir.ToString());
+                            System.IO.Directory.CreateDirectory(dir.ToString());
+                        }
+
+                        try
+                        {
+                            gatherCustomInfo(currentProcessableFile, DayRates, NightsRates);
+                            if (runRollup)
+                                gatherRollUpInfo(collectionSummary, currentProcessableFile);
+                            currentProcessableFile.Close(false);
+                            log.Info("File Coppied from: " + copy + " to Archive");
+                            System.IO.File.Copy(copy, archivePathFile, true);
+                            System.IO.File.Delete(copy);
+                        }
+                        catch (Exception)
+                        {
+                            log.Warn(System.DateTime.Now + ":\t" + "File currently in use: " + copy);
+                        }
                     }
 
-                    try
-                    {
-                        gatherCustomInfo(currentProcessableFile, DayRates, NightsRates);
-                        if(runRollup)
-                        gatherRollUpInfo(collectionSummary, currentProcessableFile);
-                        currentProcessableFile.Close(false);
-                        log.Info("File Coppied from: " + copy + " to Archive");
-                        System.IO.File.Copy(copy, archivePathFile, true);
-                        System.IO.File.Delete(copy);
-                    }
-                    catch (Exception)
-                    {
-                        log.Warn(System.DateTime.Now + ":\t" + "File currently in use: " + copy);
-                    }
                 }
-                
             }
+                
+
+                
 
             //clean up excel
             if(runRollup)
@@ -590,28 +621,42 @@ namespace FlowPlanConstruction
 
         //}
 
-        private static void customizeFlowPlan(string newFileDirectory, string warehouse, string shift,bool laborPlanInfoAvaliable, double[] laborPlanInformation, string distrobutionList, double backlogHandoffPercent, double VCPUWageRate, int DeadMan, double[] daysRates, double[] nightsRate, double[] tphGoals, bool laborPlanPop)// this may need restructuring to make it more readable keep and eye on for future improvements
+        private static void customizeFlowPlan(string newFileDirectory, string warehouse, string shift,bool laborPlanInfoAvaliable, double[] laborPlanInformation, 
+            string distrobutionList, double backlogHandoffPercent, double VCPUWageRate, int DeadMan, double[] daysRates, double[] nightsRate, double[] tphGoals, 
+            bool laborPlanPop, string[] warehouseNames, double timeoffset, double[] mshiftsplit, double[] nightstphdistro)// this may need restructuring to make it more readable keep and eye on for future improvements
         {
             log.Info("Begining {0} {1} file customization process", warehouse, shift);
 
             CheckDirExist(newFileDirectory);
+
+            List<object> ExcelObjects = new List<object>();
 
             //define Excel Application for the Creation Process
             Excel.Application CustomiseFlowPlanApplication = null;
             CustomiseFlowPlanApplication = new Excel.Application();
             CustomiseFlowPlanApplication.Visible = visibilityFlag;
             CustomiseFlowPlanApplication.DisplayAlerts = alertsFlag;
+            ExcelObjects.Add(CustomiseFlowPlanApplication);
             
-            //create the empty containers for the excel application
+            //create the empty containers for the excel application and add to object list to release later on.
             Excel.Workbooks customizeFlowPlanWorkBookCollection = null;
+            ExcelObjects.Add(customizeFlowPlanWorkBookCollection);
             Excel.Workbook chargeDataSourceWB = null;
+            ExcelObjects.Add(chargeDataSourceWB);
             Excel.Worksheet chargeDataSourceWKST = null;
+            ExcelObjects.Add(chargeDataSourceWKST);
             Excel.Workbook customFlowPlanDestinationWB = null;
+            ExcelObjects.Add(customFlowPlanDestinationWB);
             Excel.Worksheet customFlowPlanDestinationCHRGDATAWKST = null;
+            ExcelObjects.Add(customFlowPlanDestinationCHRGDATAWKST);
             Excel.Worksheet customFPDestinationSOSWKST = null;
+            ExcelObjects.Add(customFPDestinationSOSWKST);
             Excel.Worksheet customFlowPlanDestinationHOURLYTPHWKST = null;
+            ExcelObjects.Add(customFlowPlanDestinationHOURLYTPHWKST);
             Excel.Worksheet customFlowPlanDestinationHourlySTWKST = null;
+            ExcelObjects.Add(customFlowPlanDestinationHourlySTWKST);
             Excel.Worksheet customFlowPlanDestinationMasterDataWKST = null;
+            ExcelObjects.Add(customFlowPlanDestinationMasterDataWKST);
 
             log.Info("Excel Empty containers created");
 
@@ -645,17 +690,14 @@ namespace FlowPlanConstruction
 
             log.Info("Charge Data cleared in master");
 
-            customFlowPlanDestRange.Value = chargeDataSourceWKST.UsedRange.Value;
-
-            //object test = chargeDataSourceWKST.UsedRange.Value;
-
-            
+            customFlowPlanDestRange.Value = chargeDataSourceWKST.UsedRange.Value;         
 
             log.Info("New charge Data inserted into the master copy");
 
             chargeDataSourceWB.Close();
 
             //setup SOS Information
+            //customFPDestinationSOSWKST.Range["I3"].Validation.Add(Excel.XlDVType.xlValidateList, Formula1: string.Join(",", warehouseNames));
             customFPDestinationSOSWKST.Cells[3, 9].value = warehouse;
             customFPDestinationSOSWKST.Cells[4, 9].value = System.DateTime.Now.ToString("yyyy-MM-dd");
             customFPDestinationSOSWKST.Cells[5, 9].value = shift;
@@ -716,6 +758,11 @@ namespace FlowPlanConstruction
             log.Info("Master Data VCPU wage rate is updated to {0}", VCPUWageRate);
             customFlowPlanDestinationMasterDataWKST.Cells[17, 14].value = DeadMan;
             log.Info("Master Data Dead Man is updated to {0}", DeadMan);
+            customFlowPlanDestinationMasterDataWKST.Cells[15, 14].value = mshiftsplit[0];
+            customFlowPlanDestinationMasterDataWKST.Cells[16, 14].value = mshiftsplit[1];
+            log.Info("Master Data M-Shift Splite Updated to {0} days, {1} nights", mshiftsplit[0], mshiftsplit[1]);
+            customFlowPlanDestinationMasterDataWKST.Cells[19, 17].value = timeoffset;
+            log.Info("Master Data Time Zone Offset updated to {0}", timeoffset);
 
 
             log.Info("Master Data sections update completed");
@@ -781,32 +828,26 @@ namespace FlowPlanConstruction
             //close down the rest of the outstanding excel application.
 
             CustomiseFlowPlanApplication.Quit();
-            customFlowPlanDestinationCHRGDATAWKST = null;
-            customFlowPlanDestinationHOURLYTPHWKST = null;
-            customFPDestinationSOSWKST = null;
-            customFlowPlanDestinationWB = null;
-            customizeFlowPlanWorkBookCollection = null; 
-            chargeDataSourceWKST = null;
-            chargeDataSourceWB = null;
-            CustomiseFlowPlanApplication = null;
+
 
             //clear com object references
-            if (customFlowPlanDestinationWB != null)
-            { Marshal.Marshal.ReleaseComObject(customFlowPlanDestinationWB); }
-            if (customFlowPlanDestinationCHRGDATAWKST != null)
-            { Marshal.Marshal.ReleaseComObject(customFlowPlanDestinationCHRGDATAWKST); }
-            if (chargeDataSourceWB != null)
-            { Marshal.Marshal.ReleaseComObject(chargeDataSourceWB); }
-            if (chargeDataSourceWKST != null)
-            { Marshal.Marshal.ReleaseComObject(chargeDataSourceWKST); }
-            if (customizeFlowPlanWorkBookCollection != null)
-            { Marshal.Marshal.ReleaseComObject(customizeFlowPlanWorkBookCollection); }
-            if (CustomiseFlowPlanApplication != null)
-            { Marshal.Marshal.ReleaseComObject(CustomiseFlowPlanApplication); }
+
+            foreach(object ob in ExcelObjects)
+            {
+                releaseComObject(ob);
+            }
+
 
 
         }
 
+        public static void releaseComObject(object comObjectToRelease)
+        {
+            if(comObjectToRelease != null)
+            {
+                { Marshal.Marshal.ReleaseComObject(comObjectToRelease); }
+            }
+        }
         public static void GracefulExit(List<Warehouse> warehouseList)
         {
             try
@@ -850,7 +891,8 @@ namespace FlowPlanConstruction
                 CreateNewChildXmlNode(warehousesXML, warehouse, "HandoffPercent", wh.HandoffPercent.ToString());
                 CreateNewChildXmlNode(warehousesXML, warehouse, "VCPUWageRate", wh.VCPUWageRate.ToString());
                 CreateNewChildXmlNode(warehousesXML, warehouse, "LaborPlanRows", string.Join(",", wh.laborPlanInforRows));
-                CreateNewChildXmlNode(warehousesXML, warehouse, "TPHDistro", string.Join(",", wh.tphDistro));
+                CreateNewChildXmlNode(warehousesXML, warehouse, "DaysTPHDistro", string.Join(",", wh.daystphDistro));
+                CreateNewChildXmlNode(warehousesXML, warehouse, "NightsTPHDistro", string.Join(",", wh.nightstphDistro));
                 CreateNewChildXmlNode(warehousesXML, warehouse, "DaysRates", string.Join(",", wh.daysRate));
                 CreateNewChildXmlNode(warehousesXML, warehouse, "NightsRates", string.Join(",", wh.nightsRate));
                 CreateNewChildXmlNode(warehousesXML, warehouse, "PreShiftFlag", wh.PreShiftFlag.ToString());
@@ -860,6 +902,8 @@ namespace FlowPlanConstruction
                 CreateNewChildXmlNode(warehousesXML, warehouse, "DaysChargePattern", string.Join(",", wh.daysChargePattern));
                 CreateNewChildXmlNode(warehousesXML, warehouse, "NightsChargePattern", string.Join(",", wh.nightsChargePattern));
                 CreateNewChildXmlNode(warehousesXML, warehouse, "IBFlowPlanPOP", wh.IBFlowPlan.ToString());
+                CreateNewChildXmlNode(warehousesXML, warehouse, "Mshiftsplit", string.Join(",", wh.mshiftsplit));
+                CreateNewChildXmlNode(warehousesXML, warehouse, "TimeOffset", wh.timeoffset.ToString());
             }
 
             return warehousesXML.InnerXml;
@@ -923,8 +967,11 @@ namespace FlowPlanConstruction
                             case "LaborPlanRows":
                                 temp.laborPlanInforRows = Array.ConvertAll(warehouseinfo.InnerText.Split(','), int.Parse);
                                 break;
-                            case "TPHDistro":
-                                temp.tphDistro = Array.ConvertAll(warehouseinfo.InnerText.Split(','), double.Parse);
+                            case "DaysTPHDistro":
+                                temp.daystphDistro = Array.ConvertAll(warehouseinfo.InnerText.Split(','), double.Parse);
+                                break;
+                            case "NightsTPHDistro":
+                                temp.nightstphDistro = Array.ConvertAll(warehouseinfo.InnerText.Split(','), double.Parse);
                                 break;
                             case "DaysRates":
                                 temp.daysRate = Array.ConvertAll(warehouseinfo.InnerText.Split(','), double.Parse);
@@ -953,13 +1000,17 @@ namespace FlowPlanConstruction
                             case "IBFlowPlanPOP":
                                 temp.IBFlowPlan = bool.Parse(warehouseinfo.InnerText);
                                 break;
+                            case "TimeOffset":
+                                temp.timeoffset = Double.Parse(warehouseinfo.InnerText);
+                                break;
+                            case "Mshiftsplit":
+                                temp.mshiftsplit = Array.ConvertAll(warehouseinfo.InnerText.Split(','), double.Parse);
+                                break;
                             default:
                                 log.Warn("XML Node not found: {0}", warehouseinfo.Name);
                                 break;
                         }
                     }
-                    temp.daysChargePattern = rates;
-                    temp.nightsChargePattern = rates;
                     whList.Add(temp);
                     log.Info("{0} Warehouse added to list of warehouses", temp.Name);
                 }
@@ -999,26 +1050,39 @@ namespace FlowPlanConstruction
 
         public static void CustomizePreShift (double[] laborPlanInfo, string shift, string blankLocation, string warehouse, bool infoPop)//need to enhance logging and pull calculations out of this function.
         {
+            List<object> ExcelObjects = new List<object>();
 
             //define Excel Application for the Creation Process
             Excel.Application CustomisePreShiftApplication = null;
+            ExcelObjects.Add(CustomisePreShiftApplication);
             CustomisePreShiftApplication = new Excel.Application();
             CustomisePreShiftApplication.Visible = visibilityFlag;
             CustomisePreShiftApplication.DisplayAlerts = alertsFlag;
 
             //create the empty containers for the excel application
             Excel.Workbooks customizePreShiftWorkBookCollection = null;
+            ExcelObjects.Add(customizePreShiftWorkBookCollection);
             Excel.Workbook customSupPreShiftDestinationWB = null;
+            ExcelObjects.Add(customSupPreShiftDestinationWB);
             Excel.Worksheet SupINDWKST = null;
+            ExcelObjects.Add(SupINDWKST);
             Excel.Worksheet SupPACKWKST = null;
+            ExcelObjects.Add(SupPACKWKST);
             Excel.Worksheet SupPICKWKST = null;
+            ExcelObjects.Add(SupPICKWKST);
             Excel.Worksheet SupDockWKST = null;
+            ExcelObjects.Add(SupDockWKST);
 
             Excel.Workbook customLeadPreShiftDestinationWB = null;
+            ExcelObjects.Add(customLeadPreShiftDestinationWB);
             Excel.Worksheet LeadINDWKST = null;
+            ExcelObjects.Add(LeadINDWKST);
             Excel.Worksheet LeadPACKWKST = null;
+            ExcelObjects.Add(LeadPACKWKST);
             Excel.Worksheet LeadPICKWKST = null;
+            ExcelObjects.Add(LeadPICKWKST);
             Excel.Worksheet LeadDockWKST = null;
+            ExcelObjects.Add(LeadDockWKST);
 
             log.Info("Excel Empty containers created for Pre-Shift Documentation");
 
@@ -1197,6 +1261,12 @@ namespace FlowPlanConstruction
             customLeadPreShiftDestinationWB.Close();
             customSupPreShiftDestinationWB.Close();
             CustomisePreShiftApplication.Quit();
+
+            foreach (object o in ExcelObjects)
+            {
+                releaseComObject(o);
+            }
+                
             //customizePreShiftWorkBookCollection = null;
             //customSupPreShiftDestinationWB = null;
             //customLeadPreShiftDestinationWB = null;
@@ -1210,50 +1280,32 @@ namespace FlowPlanConstruction
             //LeadDockWKST = null;
             //CustomisePreShiftApplication = null;
             //clear com object references
-            if (customizePreShiftWorkBookCollection != null)
-            { Marshal.Marshal.ReleaseComObject(customizePreShiftWorkBookCollection); }
-            if (customSupPreShiftDestinationWB != null)
-            { Marshal.Marshal.ReleaseComObject(customSupPreShiftDestinationWB); }
-            if (customLeadPreShiftDestinationWB != null)
-            { Marshal.Marshal.ReleaseComObject(customLeadPreShiftDestinationWB); }
-            if (SupINDWKST != null)
-            { Marshal.Marshal.ReleaseComObject(SupINDWKST); }
-            if (SupPACKWKST != null)
-            { Marshal.Marshal.ReleaseComObject(SupPACKWKST); }
-            if (SupPICKWKST != null)
-            { Marshal.Marshal.ReleaseComObject(SupPICKWKST); }
-            if (SupDockWKST != null)
-            { Marshal.Marshal.ReleaseComObject(SupDockWKST); }
-            if (LeadINDWKST != null)
-            { Marshal.Marshal.ReleaseComObject(LeadINDWKST); }
-            if (LeadPACKWKST != null)
-            { Marshal.Marshal.ReleaseComObject(LeadPACKWKST); }
-            if (LeadPICKWKST != null)
-            { Marshal.Marshal.ReleaseComObject(LeadPICKWKST); }
-            if (LeadDockWKST != null)
-            { Marshal.Marshal.ReleaseComObject(LeadDockWKST); }
-            if (CustomisePreShiftApplication != null)
-            { Marshal.Marshal.ReleaseComObject(CustomisePreShiftApplication); }
+            //if (customizePreShiftWorkBookCollection != null)
+            //{ Marshal.Marshal.ReleaseComObject(customizePreShiftWorkBookCollection); }
+            //if (customSupPreShiftDestinationWB != null)
+            //{ Marshal.Marshal.ReleaseComObject(customSupPreShiftDestinationWB); }
+            //if (customLeadPreShiftDestinationWB != null)
+            //{ Marshal.Marshal.ReleaseComObject(customLeadPreShiftDestinationWB); }
+            //if (SupINDWKST != null)
+            //{ Marshal.Marshal.ReleaseComObject(SupINDWKST); }
+            //if (SupPACKWKST != null)
+            //{ Marshal.Marshal.ReleaseComObject(SupPACKWKST); }
+            //if (SupPICKWKST != null)
+            //{ Marshal.Marshal.ReleaseComObject(SupPICKWKST); }
+            //if (SupDockWKST != null)
+            //{ Marshal.Marshal.ReleaseComObject(SupDockWKST); }
+            //if (LeadINDWKST != null)
+            //{ Marshal.Marshal.ReleaseComObject(LeadINDWKST); }
+            //if (LeadPACKWKST != null)
+            //{ Marshal.Marshal.ReleaseComObject(LeadPACKWKST); }
+            //if (LeadPICKWKST != null)
+            //{ Marshal.Marshal.ReleaseComObject(LeadPICKWKST); }
+            //if (LeadDockWKST != null)
+            //{ Marshal.Marshal.ReleaseComObject(LeadDockWKST); }
+            //if (CustomisePreShiftApplication != null)
+            //{ Marshal.Marshal.ReleaseComObject(CustomisePreShiftApplication); }
 
         }
-        //public static void gatherRawChargeDate
-        //{
-
-        //    foreach(row in data)
-        //        {
-        //        switch col1
-        //    {
-        //            case "AVP1":
-        //                foreach (hour in day)
-        //                {
-        //                    avp1source[DateTime, hour] = avp1TPHHourlyGoalDays;
-
-        //                }
-        //                break;
-        //        }
-        //    }
-                
-        //}
         public static double calcTotalHourlyShip(double shipGoal)
         {
 
