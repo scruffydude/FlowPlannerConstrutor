@@ -35,6 +35,8 @@ namespace FlowPlanConstruction
         private double[] _daysChargePattern;
         private double[] _nightsChargePattern;
         private double[] _mshiftsplit;
+        private int[] _cutTimes;
+        private double[] _capacityCalcRates;
 
 
         public Warehouse(string name, string blankCopyLoc,
@@ -178,6 +180,16 @@ namespace FlowPlanConstruction
         {
             get { return _timeoffset; }
             set { _timeoffset = value; }
+        }
+        public int[] cutTimes
+        {
+            get { return _cutTimes; }
+            set { _cutTimes = value; }
+        }
+        public double[] capacityCalcRates
+        {
+            get { return _capacityCalcRates; }
+            set { _capacityCalcRates = value; }
         }
             
     }

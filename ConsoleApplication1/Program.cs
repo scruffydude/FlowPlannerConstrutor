@@ -32,7 +32,7 @@ namespace FlowPlanConstruction
 
         //path information
         public const string chargeDataSrcPath = @"\\cfc1afs01\Operations-Analytics\RAW Data\chargepattern.csv";
-        public const string masterOBFlowPlanLocation = @"\\CFC1AFS01\Operations-Analytics\Projects\Flow Plan\Outbound Flow Plan v2.0(MCRC).xlsm";
+        public const string masterOBFlowPlanLocation = @"\\cfc1afs01\Operations-Analytics\Projects\Flow Plan\Master Flow Plans\Outbound_Master\Outbound Flow Plan v2.0(MCRC).xlsm";
         public const string laborPlanLocationation = @"\\chewy.local\bi\BI Community Content\Finance\Labor Models\";
         public const string laborPlanSecondaryLoc = @"\\cfc1001507d\Labor-Models\SharePoint\21 Day Plan - Documents";
         public const string whXmlList = @"\\cfc1afs01\Operations-Analytics\Projects\Flow Plan\Release\Warehouses.xml";
@@ -94,7 +94,7 @@ namespace FlowPlanConstruction
                 
                 
 
-                    if (!debugMode)// && wh.Name =="DFW1")
+                    if (!debugMode)// && wh.Name =="AVP1")
                     {
                         log.Info("Debug mode disabled checking process flags.");
                         if (runLaborPlan)
@@ -118,7 +118,7 @@ namespace FlowPlanConstruction
                             {
                                 customizeFlowPlan(wh.OBblankCopyLoc, wh.Name, shift, runLaborPlanPopulate, laborplaninfo, wh.DistroList, wh.HandoffPercent,
                                     wh.VCPUWageRate, wh.DeadMan, wh.daysRate, wh.nightsRate, wh.daystphDistro, wh.laborInfoPop, warehouseNames.ToArray(),
-                                    wh.timeoffset, wh.mshiftsplit,wh.nightstphDistro);
+                                    wh.timeoffset, wh.mshiftsplit,wh.nightstphDistro, wh.cutTimes);
                                 if (wh.PreShiftFlag)
                                     CustomizePreShift(laborplaninfo, shift, wh.OBblankCopyLoc, wh.Name, wh.preshiftInfoPop);
                             }
@@ -198,12 +198,12 @@ namespace FlowPlanConstruction
             {
                 string filename = Path.GetFileName(file);
                 string lastmodified = File.GetLastWriteTime(file).ToString("yyyy-MM-dd").Replace('-', '\\')+"\\";
-                string destFile = archiveLocation + lastmodified + filename;
+                string ArchdestFile = archiveLocation + lastmodified + filename;
 
                 CheckDirExist(archiveLocation + lastmodified);
-                CheckFileExists(destFile);
+                CheckFileExists(ArchdestFile);
 
-                File.Copy(file, destFile);
+                File.Copy(file, ArchdestFile);
                 try
                 {
                     File.Delete(file);
@@ -213,7 +213,14 @@ namespace FlowPlanConstruction
                 }
                 
             }
-            File.Copy(masterIBFlowPlanLocation, blankLocation + "Inbound Flow Plan "+ System.DateTime.Now.Date.ToString("yyyy-MM-dd") + ".xlsm");
+            if(CheckFileExists(blankLocation + "Inbound Flow Plan " + System.DateTime.Now.Date.ToString("yyyy-MM-dd") + ".xlsm"))
+            {
+                File.Copy(masterIBFlowPlanLocation, blankLocation + "Inbound Flow Plan " + System.DateTime.Now.Date.ToString("yyyy-MM-dd") + ".xlsm");
+            }else
+            {
+                log.Warn("Inbound Flow Plan not Copied");
+            }
+            
         }
 
         private static void CleanUpDirectories(string locToArchive, string archiveLocation, double[] DayRates, double[] NightsRates)
@@ -499,68 +506,75 @@ namespace FlowPlanConstruction
                         laborPlanPopulate = false;
                     }
                     
-                    Excel.Worksheet OBDP = laborPlanModel.Worksheets.Item["OB Daily Plan"];
-
-                    //determine which rows to go look for
-                    foreach (string label in rowlabels)
+                    if( laborPlanModel!=null)
                     {
-                        //checklocationofvalue(dprows[r], 2, OBDP, label, true);
-                        //checklocationofvalue(dprows[r], col+2, OBDP, System.DateTime.Now.Date.ToString(), false);
-                        if (r > 11)
-                        {
-                            log.Warn("Current Row Check Greater than number of verifications needed.. Shutting down Labor Plan Search");
-                            laborPlanPopulate = false;
-                        }
-                        else
-                        {
-                            string rcheck = OBDP.Cells[dprows[r], 2].value; //Set the row check = to what we think the row should be
-                            if (rcheck == label)
-                            {
-                                log.Info(wh + " Row location verified for " + label + " at row " + dprows[r]);
+                        Excel.Worksheet OBDP = laborPlanModel.Worksheets.Item["OB Daily Plan"];
 
+                        //determine which rows to go look for
+                        foreach (string label in rowlabels)
+                        {
+                            //checklocationofvalue(dprows[r], 2, OBDP, label, true);
+                            //checklocationofvalue(dprows[r], col+2, OBDP, System.DateTime.Now.Date.ToString(), false);
+                            if (r > 11)
+                            {
+                                log.Warn("Current Row Check Greater than number of verifications needed.. Shutting down Labor Plan Search");
+                                laborPlanPopulate = false;
                             }
                             else
                             {
-                                int OBDPusedRange = OBDP.UsedRange.Rows.Count;
-                                string newrcheck = "";
-                                for (int x = 1; x < OBDPusedRange; x++)
+                                string rcheck = OBDP.Cells[dprows[r], 2].value; //Set the row check = to what we think the row should be
+                                if (rcheck == label)
                                 {
-                                    newrcheck = OBDP.Cells[x, 2].value;
-                                    if (newrcheck == label)
-                                    {
-                                        dprows[r] = x;
-                                        log.Warn(wh + " Row location for " + label + " now found at row " + dprows[r]);
-                                    }
+                                    log.Info(wh + " Row location verified for " + label + " at row " + dprows[r]);
 
                                 }
+                                else
+                                {
+                                    int OBDPusedRange = OBDP.UsedRange.Rows.Count;
+                                    string newrcheck = "";
+                                    for (int x = 1; x < OBDPusedRange; x++)
+                                    {
+                                        newrcheck = OBDP.Cells[x, 2].value;
+                                        if (newrcheck == label)
+                                        {
+                                            dprows[r] = x;
+                                            log.Warn(wh + " Row location for " + label + " now found at row " + dprows[r]);
+                                        }
+
+                                    }
+                                }
                             }
+                            r++;
                         }
-                        r++;
+
+                        foreach (int row in dprows)
+                        {
+                            if (i > 11)
+                            {
+                                log.Warn("Current Row Check Greater than number of verifications needed.. Shutting down Labor Plan Search");
+                                laborPlanPopulate = false;
+                            }
+                            //add information into array
+                            if (i < 9)//collect current day
+                            {
+                                laborplaninfo[i] = OBDP.Cells[row, col + 2].value;//cloumn == 2 + number of days past this year
+
+                            }
+                            else//last 4 get from tomorrow for next day planning
+                            {
+                                laborplaninfo[i] = OBDP.Cells[row, col + 3].value;//cloumn == 2 + number of days past this year + 1 for tomorrow
+                            }
+
+                            i++;
+                        }
+                        OBDP = null;
+                        laborPlanModel.Close();
                     }
-
-
-                    foreach (int row in dprows)
+                    else
                     {
-                        if(i>11)
-                        {
-                            log.Warn("Current Row Check Greater than number of verifications needed.. Shutting down Labor Plan Search");
-                            laborPlanPopulate = false;
-                        }
-                        //add information into array
-                        if (i < 9)//collect current day
-                        {
-                            laborplaninfo[i] = OBDP.Cells[row, col + 2].value;//cloumn == 2 + number of days past this year
-
-                        }
-                        else//last 4 get from tomorrow for next day planning
-                        {
-                            laborplaninfo[i] = OBDP.Cells[row, col + 3].value;//cloumn == 2 + number of days past this year + 1 for tomorrow
-                        }
-
-                        i++;
+                        continue;
                     }
-                    OBDP = null;
-                    laborPlanModel.Close();
+                    
                 }
             }
 
@@ -623,7 +637,7 @@ namespace FlowPlanConstruction
 
         private static void customizeFlowPlan(string newFileDirectory, string warehouse, string shift,bool laborPlanInfoAvaliable, double[] laborPlanInformation, 
             string distrobutionList, double backlogHandoffPercent, double VCPUWageRate, int DeadMan, double[] daysRates, double[] nightsRate, double[] tphGoals, 
-            bool laborPlanPop, string[] warehouseNames, double timeoffset, double[] mshiftsplit, double[] nightstphdistro)// this may need restructuring to make it more readable keep and eye on for future improvements
+            bool laborPlanPop, string[] warehouseNames, double timeoffset, double[] mshiftsplit, double[] nightstphdistro, int[] cutTimes)// this may need restructuring to make it more readable keep and eye on for future improvements
         {
             log.Info("Begining {0} {1} file customization process", warehouse, shift);
 
@@ -657,6 +671,8 @@ namespace FlowPlanConstruction
             ExcelObjects.Add(customFlowPlanDestinationHourlySTWKST);
             Excel.Worksheet customFlowPlanDestinationMasterDataWKST = null;
             ExcelObjects.Add(customFlowPlanDestinationMasterDataWKST);
+            Excel.Worksheet customFlowPlanDestinationCAPACCALCWKST = null;
+            ExcelObjects.Add(customFlowPlanDestinationCAPACCALCWKST);
 
             log.Info("Excel Empty containers created");
 
@@ -670,6 +686,7 @@ namespace FlowPlanConstruction
             customFlowPlanDestinationHOURLYTPHWKST = customFlowPlanDestinationWB.Worksheets.Item["Hourly TPH"];
             customFlowPlanDestinationHourlySTWKST = customFlowPlanDestinationWB.Worksheets.Item["Hourly ST"];
             customFlowPlanDestinationMasterDataWKST = customFlowPlanDestinationWB.Worksheets.Item["Master Data"];
+            customFlowPlanDestinationCAPACCALCWKST = customFlowPlanDestinationWB.Worksheets.Item["Capacity Calc"];
 
             log.Info("Charge Data Source: {0}", chargeDataSrcPath);
             log.Info("Master Flow Plan Source: {0}", masterOBFlowPlanLocation);
@@ -745,7 +762,15 @@ namespace FlowPlanConstruction
             //Hourly TPH Configuration
             for (int i = 0; i < 10; i++)
             {
-                customFlowPlanDestinationHOURLYTPHWKST.Cells[25, i + 4].value = tphGoals[i];
+                if(shift == "Nights")
+                {
+                    customFlowPlanDestinationHOURLYTPHWKST.Cells[25, i + 5].value = nightstphdistro[i];
+                }
+                else
+                {
+                    customFlowPlanDestinationHOURLYTPHWKST.Cells[25, i + 5].value = tphGoals[i];
+                }
+                
             }
             log.Info("TPH assumptions Adjusted for AVP1");
 
@@ -776,7 +801,15 @@ namespace FlowPlanConstruction
             {
                 customFlowPlanDestinationHourlySTWKST.Cells[i + 52, 4].value = rates[i];
             }
-            
+
+            int cellLoc = 2;
+            //Capacity Calc
+            foreach(int cutHour in cutTimes)
+            {
+                customFlowPlanDestinationCAPACCALCWKST.Cells[cellLoc, 7].value = cutHour;
+                cellLoc += 11;
+            }
+
             //reset caluclation
             CustomiseFlowPlanApplication.Calculation = Excel.XlCalculation.xlCalculationAutomatic;
 
@@ -904,6 +937,8 @@ namespace FlowPlanConstruction
                 CreateNewChildXmlNode(warehousesXML, warehouse, "IBFlowPlanPOP", wh.IBFlowPlan.ToString());
                 CreateNewChildXmlNode(warehousesXML, warehouse, "Mshiftsplit", string.Join(",", wh.mshiftsplit));
                 CreateNewChildXmlNode(warehousesXML, warehouse, "TimeOffset", wh.timeoffset.ToString());
+                CreateNewChildXmlNode(warehousesXML, warehouse, "CutTimes", string.Join(",", wh.cutTimes));
+                CreateNewChildXmlNode(warehousesXML, warehouse, "CapacityCalcRates", string.Join(",", wh.capacityCalcRates));
             }
 
             return warehousesXML.InnerXml;
@@ -1001,10 +1036,16 @@ namespace FlowPlanConstruction
                                 temp.IBFlowPlan = bool.Parse(warehouseinfo.InnerText);
                                 break;
                             case "TimeOffset":
-                                temp.timeoffset = Double.Parse(warehouseinfo.InnerText);
+                                temp.timeoffset = double.Parse(warehouseinfo.InnerText);
                                 break;
                             case "Mshiftsplit":
                                 temp.mshiftsplit = Array.ConvertAll(warehouseinfo.InnerText.Split(','), double.Parse);
+                                break;
+                            case "CutTimes":
+                                temp.cutTimes = Array.ConvertAll(warehouseinfo.InnerText.Split(','), int.Parse);
+                                break;
+                            case "CapacityCalcRates":
+                                temp.capacityCalcRates = Array.ConvertAll(warehouseinfo.InnerText.Split(','), double.Parse);
                                 break;
                             default:
                                 log.Warn("XML Node not found: {0}", warehouseinfo.Name);
@@ -1225,6 +1266,7 @@ namespace FlowPlanConstruction
                 shift;
             try
             {
+                customSupPreShiftDestinationWB.Activate();
                 customSupPreShiftDestinationWB.SaveAs(saveFileName + " Sup Pre-Shift Check List.xlsx");
                 log.Info("{0} {1} Preshift Saved at {2}", warehouse, shift, saveFileName + " Sup Pre-Shift Check List.xlsx");
             }
@@ -1232,6 +1274,7 @@ namespace FlowPlanConstruction
             {
                 try
                 {
+                    customSupPreShiftDestinationWB.Activate();
                     log.Warn("Issue saving {0} Sup Preshift, trying secondary save function.", shift);
                     customSupPreShiftDestinationWB.SaveAs(saveFileName + " Sup Pre-Shift Check List(new).xlsx");
                 }
@@ -1242,21 +1285,24 @@ namespace FlowPlanConstruction
             }
             try
             {
-                customLeadPreShiftDestinationWB.SaveAs(saveFileName + " Lead Pre-Shift Check List.xlsx");
+                customLeadPreShiftDestinationWB.Activate();
+                customLeadPreShiftDestinationWB.SaveAs(Filename: saveFileName + " Lead Pre-Shift Check List.xlsx");
                 log.Info("{0} {1} Preshift Saved at {2}", warehouse, shift, saveFileName + " Lead Pre-Shift Check List.xlsx");
             }
             catch
             {
                 try
                 {
+                    customLeadPreShiftDestinationWB.Activate();
                     log.Warn("Issue saving {0} Lead Preshift, trying secondary save function.", shift);
-                    customLeadPreShiftDestinationWB.SaveAs(saveFileName + " Lead Pre-Shift Check List(new).xlsx");
-                }
-                catch
-                {
-                    log.Fatal("Unable to save {0} Lead Preshift skipping....", shift);
-                }
-             }
+                    customLeadPreShiftDestinationWB.SaveAs(Filename: saveFileName + " Lead Pre-Shift Check List(new).xlsx");
+            }
+            catch (Exception e)
+            {
+                log.Fatal(e, "Current Error");
+                log.Fatal("Unable to save {0} Lead Preshift skipping....", shift);
+            }
+        }
 
             customLeadPreShiftDestinationWB.Close();
             customSupPreShiftDestinationWB.Close();
