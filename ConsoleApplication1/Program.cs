@@ -116,13 +116,21 @@ namespace FlowPlanConstruction
                     }
                 }
 
-                if (!debugMode && (CurrentRunTime == wh.DaysRunTime || CurrentRunTime == wh.NightsRunTime))// && wh.Name == "CFC1")
+                if (!debugMode && (CurrentRunTime == wh.DaysRunTime || CurrentRunTime == wh.NightsRunTime))// && wh.Name == "PHX1")
                 {
                     log.Info("Debug mode disabled checking process flags.");
                     if (runLaborPlan)
                     {
-                        log.Info("Labor Plan process Initalized for {0}", wh.Name);
-                        wh.LaborPlanInforRows = GetLaborPlanInfo(wh.LaborPlanInforRows, wh.Name, laborplaninfo, ref runLaborPlanPopulate);
+                        try
+                        {
+                            log.Info("Labor Plan process Initalized for {0}", wh.Name);
+                            wh.LaborPlanInforRows = GetLaborPlanInfo(wh.LaborPlanInforRows, wh.Name, laborplaninfo, ref runLaborPlanPopulate);
+                        }catch(Exception ex)
+                        {
+                            log.Fatal(ex, "Issue Collecting labor Plan info current Error: ");
+                            runLaborPlanPopulate = false;
+                        }
+                        
                     }
 
                     if (runArchive)
@@ -696,9 +704,7 @@ namespace FlowPlanConstruction
             string laborplanfileName = "";
             Excel.Workbook laborPlanModel = null;
             int col = 0;
-            col = System.DateTime.Today.DayOfYear + 365;
-            if (wh == "PHX1")
-                col = col - 365;
+            col = System.DateTime.Today.DayOfYear + 367;
             int i = 0;
 
             string[] rowlabels = { "Planned Total Show Hours (Days)", "Planned Throughput (Days)", "Planned Units Shipped (Days)", "Planned Supply Chain Units Ordered (Days)", "Planned Total Show Hours (Nights)", "Planned Throughput (Nights)", "Planned Units Shipped (Nights)", "Planned Supply Chain Units Ordered (Nights)", "Planned Total Show Hours (Days)", "Planned Throughput (Days)", "Planned Units Shipped (Days)", "Planned Supply Chain Units Ordered (Days)" };
@@ -763,6 +769,45 @@ namespace FlowPlanConstruction
                             r++;
                         }
 
+                        if (System.DateTime.Now.Date != OBDP.Cells[6, col].value)
+                        {
+                            try
+                            {
+                                for (int x = 1; x < OBDP.UsedRange.Rows.Count + 1; x++)
+                                {
+                                    if (OBDP.Cells[x, 2].value == "OUTBOUND")
+                                    {
+                                        for (int y = 1; y < OBDP.UsedRange.Columns.Count + 1; y++)
+                                        {
+                                            if (OBDP.Cells[x, y].value != null && OBDP.Cells[x, y].value is System.DateTime)
+                                            {
+                                                if (System.DateTime.Now.Date == OBDP.Cells[x, y].value)
+                                                {
+                                                    log.Info("Current day found @ column: {0}", y);
+                                                    col = y;
+                                                    y = OBDP.UsedRange.Columns.Count;
+                                                }
+
+                                            }
+                                        }
+                                        x = OBDP.UsedRange.Rows.Count;
+                                    }
+                                }
+
+                            }
+                            catch (Exception e)
+                            {
+                                log.Fatal(e, "Unable to find current date due to error: ");
+                                laborPlanPopulate = false;
+                                continue;
+                            }
+                        }else
+                        {
+                            log.Info("Current day confirmed @ column: {0}", col);
+                        }
+
+
+
                         foreach (int row in dprows)
                         {
                             if (i > 11)
@@ -773,12 +818,12 @@ namespace FlowPlanConstruction
                             //add information into array
                             if (i < 9)//collect current day
                             {
-                                laborplaninfo[i] = OBDP.Cells[row, col + 2].value;//cloumn == 2 + number of days past this year
+                                laborplaninfo[i] = OBDP.Cells[row, col].value;//cloumn == 2 + number of days past this year
 
                             }
                             else//last 4 get from tomorrow for next day planning
                             {
-                                laborplaninfo[i] = OBDP.Cells[row, col + 3].value;//cloumn == 2 + number of days past this year + 1 for tomorrow
+                                laborplaninfo[i] = OBDP.Cells[row, col + 1].value;//cloumn == 2 + number of days past this year + 1 for tomorrow
                             }
 
                             i++;
